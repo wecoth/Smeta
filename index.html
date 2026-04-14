@@ -21,9 +21,9 @@
     --text-primary: #1a1f2e;
     --text-secondary: #5a6478;
     --text-hint: #8892a4;
-    --accent: #2563eb;
-    --accent-hover: #1d4ed8;
-    --accent-bg: #eff6ff;
+    --accent: #4b5563;
+    --accent-hover: #374151;
+    --accent-bg: #eef0f2;
     --btn-bg: #f4f6fa;
     --btn-border: #dde1e8;
     --btn-hover-bg: #eaedf5;
@@ -32,12 +32,12 @@
     --section-title: #0f172a;
     --input-border: #dde1e8;
     --input-bg: #f8fafc;
-    --wall-fill: #e8edf3;
-    --wall-stroke: #4a5568;
-    --window-color: #2563eb;
-    --door-color: #d97706;
-    --room-fill: rgba(37, 99, 235, 0.04);
-    --room-stroke: rgba(37, 99, 235, 0.3);
+    --wall-fill: #cfd4da;
+    --wall-stroke: #5f6771;
+    --window-color: #eef1f4;
+    --door-color: #e5e7eb;
+    --room-fill: rgba(214, 219, 224, 0.72);
+    --room-stroke: rgba(120, 127, 136, 0.5);
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
     --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
   }
@@ -164,7 +164,7 @@
     padding: 4px 10px;
     border-radius: 6px;
     white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+    box-shadow: 0 2px 8px rgba(75,85,99,0.28);
     transform: translate(-50%, -130%);
     pointer-events: none;
   }
@@ -252,7 +252,7 @@
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(37,99,235,0.35);
+    box-shadow: 0 2px 8px rgba(75,85,99,0.26);
   }
   .tool-btn.active svg { stroke: #fff; }
   .tool-btn svg { flex-shrink: 0; }
@@ -522,6 +522,13 @@
     padding: 6px 7px;
     font-size: 10.5px;
   }
+
+  .edit-note {
+    margin-top: 8px;
+    font-size: 10.5px;
+    color: var(--text-hint);
+    line-height: 1.45;
+  }
 </style>
 </head>
 <body>
@@ -548,7 +555,7 @@
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     Пересчитать помещения
   </button>
-  <div class="snap-badge" id="snapBadge">Привязка: 10 мм</div>
+  <div class="snap-badge" id="snapBadge">Привязка: 1 мм</div>
 </div>
 
 <!-- MAIN -->
@@ -572,7 +579,7 @@
       <span>Инструмент: <b id="lblTool">Выбор</b></span>
       <span id="lblCoords">X: 0 мм &nbsp; Y: 0 мм</span>
       <span id="lblLen" style="display:none">Длина: <b id="lblLenVal">0</b> мм</span>
-      <span style="margin-left:auto; color: #94a3b8;">Клик — старт/финиш стены · ПКМ-тяг — панорама · Shift — шаг 100 мм</span>
+      <span style="margin-left:auto; color: #94a3b8;">Клик — старт/финиш стены · ПКМ-тяг — панорама · Shift — шаг 10 мм · Ctrl+Shift — 100 мм</span>
     </div>
   </div>
 
@@ -784,6 +791,8 @@
   let selectBoxStart = null;
   let selectBoxCurrent = null;
   let selectClickCandidate = null;
+  let wallResizeState = null;
+  let wallLengthAnchor = 'start';
 
   let historyPast = [];
   let historyFuture = [];
@@ -792,16 +801,43 @@
   let currentGuideLine = null;
   let currentObjectSnap = null;
 
+  const DRAW_COLORS = {
+    wallFill: '#cfd4da',
+    wallFillSelected: '#b9c0c8',
+    wallStroke: '#5f6771',
+    wallStrokeSelected: '#353c45',
+    wallHatch: 'rgba(95,103,113,0.15)',
+    roomLabel: '#4b5563',
+    roomMeta: '#6b7280',
+    windowStroke: '#8e96a0',
+    windowFill: '#eef1f4',
+    windowHover: 'rgba(238,241,244,0.82)',
+    doorStroke: '#a0a7b0',
+    doorFill: '#f4f5f7',
+    doorHover: 'rgba(244,245,247,0.82)',
+    dimension: 'rgba(71,85,105,0.7)',
+    previewFill: 'rgba(120,127,136,0.12)',
+    previewStroke: '#4b5563',
+    previewCenterLine: 'rgba(107,114,128,0.35)',
+    selectionFill: 'rgba(75,85,99,0.10)',
+    selectionStroke: 'rgba(75,85,99,0.78)',
+    endpoint: '#374151',
+    midpoint: '#6b7280',
+    intersection: '#111827',
+    perpendicular: '#9ca3af',
+    guidePrimary: '#5f6771',
+    guideSecondary: '#9aa1a9',
+    handleFill: '#f8fafc',
+    handleStroke: '#4b5563',
+    handleActive: '#111827'
+  };
+
   // colors for rooms
   const ROOM_COLORS = [
-    'rgba(37,99,235,0.07)', 'rgba(16,185,129,0.07)', 'rgba(245,158,11,0.07)',
-    'rgba(239,68,68,0.07)', 'rgba(139,92,246,0.07)', 'rgba(236,72,153,0.07)',
-    'rgba(14,165,233,0.07)', 'rgba(132,204,22,0.07)'
+    'rgba(223,227,231,0.86)'
   ];
   const ROOM_STROKES = [
-    'rgba(37,99,235,0.4)', 'rgba(16,185,129,0.4)', 'rgba(245,158,11,0.4)',
-    'rgba(239,68,68,0.4)', 'rgba(139,92,246,0.4)', 'rgba(236,72,153,0.4)',
-    'rgba(14,165,233,0.4)', 'rgba(132,204,22,0.4)'
+    'rgba(120,127,136,0.4)'
   ];
 
   // ─── DOM ─────────────────────────────────────────────────────────
@@ -878,7 +914,7 @@
         snapDistance: objectSnap.distance
       };
     }
-    const g = (shiftDown && ctrlDown) ? 1000 : shiftDown ? 100 : 10;
+    const g = (shiftDown && ctrlDown) ? 100 : shiftDown ? 10 : 1;
     let sx = Math.round(x / g) * g;
     let sy = Math.round(y / g) * g;
     if (!forceNoEndpoint) {
@@ -916,10 +952,10 @@
 
   function updateSnapBadge() {
     snapBadge.textContent = shiftDown && ctrlDown
-      ? 'Привязка: 1 м'
+      ? 'Привязка: 100 мм'
       : shiftDown
-        ? 'Привязка: 100 мм'
-        : 'Привязка: 10 мм';
+        ? 'Привязка: 10 мм'
+        : 'Привязка: 1 мм';
   }
 
   function isEditableTarget(target) {
@@ -982,6 +1018,11 @@
     redraw();
   }
 
+  function getSelectedWall() {
+    if (selectedItems.length !== 1 || !selectedId || selectedId.type !== 'wall') return null;
+    return walls.find(w => w.id === selectedId.id) || null;
+  }
+
   function toggleSelection(type, id) {
     const key = `${type}:${id}`;
     if (selectedItems.some(item => selectionKey(item) === key)) {
@@ -1013,6 +1054,96 @@
       x: (segment.x1 + segment.x2) / 2,
       y: (segment.y1 + segment.y2) / 2
     };
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function getWallContourPoint(wall, endpoint) {
+    return endpoint === 'start'
+      ? { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 }
+      : { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 };
+  }
+
+  function getWallLength(wall) {
+    const start = getWallContourPoint(wall, 'start');
+    const end = getWallContourPoint(wall, 'end');
+    return Math.hypot(end.x - start.x, end.y - start.y);
+  }
+
+  function getWallOffsetMode(wall) {
+    if (wall.offset === 'left' || wall.offset === 'center' || wall.offset === 'right') {
+      return wall.offset;
+    }
+    const start = getWallContourPoint(wall, 'start');
+    const end = getWallContourPoint(wall, 'end');
+    const len = Math.hypot(end.x - start.x, end.y - start.y);
+    if (len < 0.001) return 'center';
+    const normal = {
+      x: -(end.y - start.y) / len,
+      y: (end.x - start.x) / len
+    };
+    const signedOffset = (wall.x1 - start.x) * normal.x + (wall.y1 - start.y) * normal.y;
+    const halfT = (wall.thickness || 0) / 2;
+    if (signedOffset > halfT * 0.35) return 'right';
+    if (signedOffset < -halfT * 0.35) return 'left';
+    return 'center';
+  }
+
+  function updateWallGeometry(wall, nextStart, nextEnd, options = {}) {
+    const preserveFrom = options.preserveFrom === 'end' ? 'end' : 'start';
+    const prevLen = getWallLength(wall);
+    const relatedOpenings = openings
+      .filter(op => op.wallId === wall.id)
+      .map(op => ({
+        op,
+        centerFromStart: op.t * prevLen,
+        centerFromEnd: prevLen - op.t * prevLen
+      }));
+
+    const nextLen = Math.hypot(nextEnd.x - nextStart.x, nextEnd.y - nextStart.y);
+    if (nextLen < 1) return false;
+
+    const angle = Math.atan2(nextEnd.y - nextStart.y, nextEnd.x - nextStart.x);
+    const offsetMode = getWallOffsetMode(wall);
+    const shiftedStart = applyWallOffset(nextStart.x, nextStart.y, angle, offsetMode, wall.thickness);
+    const shiftedEnd = applyWallOffset(nextEnd.x, nextEnd.y, angle, offsetMode, wall.thickness);
+
+    wall.cx1 = nextStart.x;
+    wall.cy1 = nextStart.y;
+    wall.cx2 = nextEnd.x;
+    wall.cy2 = nextEnd.y;
+    wall.x1 = shiftedStart.x;
+    wall.y1 = shiftedStart.y;
+    wall.x2 = shiftedEnd.x;
+    wall.y2 = shiftedEnd.y;
+    wall.offset = offsetMode;
+
+    if (relatedOpenings.length) {
+      const allowedOpeningIds = new Set();
+      for (const { op, centerFromStart, centerFromEnd } of relatedOpenings) {
+        if (nextLen <= op.width + 1) continue;
+        const center = preserveFrom === 'end'
+          ? nextLen - centerFromEnd
+          : centerFromStart;
+        const minCenter = op.width / 2;
+        const maxCenter = nextLen - op.width / 2;
+        op.t = clamp(center, minCenter, maxCenter) / nextLen;
+        allowedOpeningIds.add(op.id);
+      }
+      openings = openings.filter(op => op.wallId !== wall.id || allowedOpeningIds.has(op.id));
+    }
+
+    return true;
+  }
+
+  function applyWallUpdate(wall, nextStart, nextEnd, options = {}) {
+    if (!updateWallGeometry(wall, nextStart, nextEnd, options)) return false;
+    computeRooms();
+    updateEditPanel();
+    if (options.recordHistory) recordHistory();
+    return true;
   }
 
   function segmentIntersection(a, b, epsilon = 0.001) {
@@ -1055,6 +1186,25 @@
       t,
       distance: Math.hypot(point.x - proj.x, point.y - proj.y)
     };
+  }
+
+  function isPointInsideWallSurface(point, wall, padding = 0.75) {
+    const projection = projectPointOntoSegment(point, {
+      x1: wall.x1,
+      y1: wall.y1,
+      x2: wall.x2,
+      y2: wall.y2
+    });
+    return projection.t > -0.02 &&
+      projection.t < 1.02 &&
+      projection.distance <= (wall.thickness / 2) + padding;
+  }
+
+  function isWallEndpointCoveredByAnotherWall(wall, endpoint) {
+    const point = endpoint === 'start'
+      ? { x: wall.x1, y: wall.y1 }
+      : { x: wall.x2, y: wall.y2 };
+    return walls.some(other => other.id !== wall.id && isPointInsideWallSurface(point, other));
   }
 
   function getSnapTypePriority(type) {
@@ -1216,8 +1366,8 @@
 
   function getWallSurfaceStyle(isSelected) {
     return {
-      fill: isSelected ? '#dbeafe' : '#eceef2',
-      stroke: isSelected ? '#2563eb' : '#4a5568'
+      fill: isSelected ? DRAW_COLORS.wallFillSelected : DRAW_COLORS.wallFill,
+      stroke: isSelected ? DRAW_COLORS.wallStrokeSelected : DRAW_COLORS.wallStroke
     };
   }
 
@@ -1228,7 +1378,7 @@
     patternCanvas.height = 12;
     const patternCtx = patternCanvas.getContext('2d');
     patternCtx.clearRect(0, 0, patternCanvas.width, patternCanvas.height);
-    patternCtx.strokeStyle = 'rgba(71,85,105,0.22)';
+    patternCtx.strokeStyle = DRAW_COLORS.wallHatch;
     patternCtx.lineWidth = 1;
     patternCtx.beginPath();
     patternCtx.moveTo(-2, 12);
@@ -1336,12 +1486,12 @@
       {
         key: 'primary',
         dir: primary,
-        color: Math.abs(primary.x) > 0 ? '#ff8800' : '#ef4444'
+        color: DRAW_COLORS.guidePrimary
       },
       {
         key: 'secondary',
         dir: secondary,
-        color: Math.abs(secondary.x) > 0 ? '#ff8800' : '#ef4444'
+        color: DRAW_COLORS.guideSecondary
       }
     ];
   }
@@ -1418,7 +1568,7 @@
       ctx.stroke();
     }
     ctx.setLineDash([]);
-    ctx.fillStyle = '#ff8800';
+    ctx.fillStyle = DRAW_COLORS.guidePrimary;
     ctx.beginPath();
     ctx.arc(anchor.x, anchor.y, 4.5, 0, Math.PI * 2);
     ctx.fill();
@@ -1432,11 +1582,11 @@
     if (!currentObjectSnap || tool !== 'wall') return;
     const point = toScreen(currentObjectSnap.x, currentObjectSnap.y);
     const color = {
-      endpoint: '#f59e0b',
-      midpoint: '#10b981',
-      intersection: '#8b5cf6',
-      perpendicular: '#ef4444'
-    }[currentObjectSnap.type] || '#2563eb';
+      endpoint: DRAW_COLORS.endpoint,
+      midpoint: DRAW_COLORS.midpoint,
+      intersection: DRAW_COLORS.intersection,
+      perpendicular: DRAW_COLORS.perpendicular
+    }[currentObjectSnap.type] || DRAW_COLORS.previewStroke;
 
     ctx.save();
     ctx.strokeStyle = color;
@@ -1562,6 +1712,31 @@
     };
   }
 
+  function getWallResizeHandles(wall) {
+    return ['start', 'end'].map(endpoint => {
+      const point = getWallContourPoint(wall, endpoint);
+      return {
+        wall,
+        endpoint,
+        point,
+        screen: toScreen(point.x, point.y)
+      };
+    });
+  }
+
+  function hitTestWallResizeHandle(screenPoint) {
+    if (tool !== 'select') return null;
+    const wall = getSelectedWall();
+    if (!wall) return null;
+    const radius = 10;
+    for (const handle of getWallResizeHandles(wall)) {
+      if (Math.hypot(screenPoint.x - handle.screen.x, screenPoint.y - handle.screen.y) <= radius) {
+        return handle;
+      }
+    }
+    return null;
+  }
+
   function boundsIntersect(a, b) {
     return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
   }
@@ -1637,6 +1812,7 @@
     idOpen = snapshot.idOpen;
     hoverOpening = null;
     mouseScreen = null;
+    wallResizeState = null;
     resetDrawingState();
     clearSelectionPointerState();
     selectedItems = [];
@@ -1724,6 +1900,63 @@
     syncDoorControlButtons();
     redraw();
     recordHistory();
+  }
+
+  function getSnappedWallResizePoint(fixedPoint, worldPoint, screenPoint) {
+    const snappedBase = snap(worldPoint.x, worldPoint.y, {
+      screenPoint: screenPoint || toScreen(worldPoint.x, worldPoint.y),
+      includePerpendicular: true,
+      startPoint: fixedPoint
+    });
+    let nextPoint = { ...snappedBase };
+
+    if (!snappedBase.snapType) {
+      const dx = nextPoint.x - fixedPoint.x;
+      const dy = nextPoint.y - fixedPoint.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 20 && !shiftDown) {
+        let angle = Math.atan2(dy, dx);
+        const snapAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+        for (const snapAngle of snapAngles) {
+          const diff = Math.abs(angle - snapAngle);
+          if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
+            angle = snapAngle;
+            nextPoint = {
+              x: fixedPoint.x + Math.cos(angle) * len,
+              y: fixedPoint.y + Math.sin(angle) * len
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    return nextPoint;
+  }
+
+  function setWallLength(wall, nextLength, anchor = 'start', options = {}) {
+    if (!wall) return false;
+    const targetLength = Number(nextLength);
+    if (!isFinite(targetLength) || targetLength < 20) return false;
+
+    const start = getWallContourPoint(wall, 'start');
+    const end = getWallContourPoint(wall, 'end');
+    const currentLength = Math.hypot(end.x - start.x, end.y - start.y);
+    if (currentLength < 1 || Math.abs(currentLength - targetLength) < 0.5) return false;
+
+    const ux = (end.x - start.x) / currentLength;
+    const uy = (end.y - start.y) / currentLength;
+    const nextStart = anchor === 'end'
+      ? { x: end.x - ux * targetLength, y: end.y - uy * targetLength }
+      : start;
+    const nextEnd = anchor === 'end'
+      ? end
+      : { x: start.x + ux * targetLength, y: start.y + uy * targetLength };
+
+    return applyWallUpdate(wall, nextStart, nextEnd, {
+      preserveFrom: anchor === 'end' ? 'end' : 'start',
+      recordHistory: !!options.recordHistory
+    });
   }
 
   function getWallPreviewEnd(world) {
@@ -1842,8 +2075,8 @@
     const box = normalizedSelectionBox();
     if (!box || !hasDraggedSelectionBox()) return;
     ctx.save();
-    ctx.fillStyle = 'rgba(37,99,235,0.10)';
-    ctx.strokeStyle = 'rgba(37,99,235,0.8)';
+    ctx.fillStyle = DRAW_COLORS.selectionFill;
+    ctx.strokeStyle = DRAW_COLORS.selectionStroke;
     ctx.lineWidth = 1;
     ctx.setLineDash([6, 4]);
     ctx.fillRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
@@ -1868,6 +2101,7 @@
     drawWalls();
     drawWallJoints();
     drawOpenings();
+    drawSelectedWallHandles();
     if (hoverOpening) drawHoverOpening();
     if (isDrawing && drawStart && drawEnd) drawTempWall();
     if (tool === 'wall' && currentGuideLine) drawCurrentGuideLine();
@@ -1954,13 +2188,13 @@
       ctx.setLineDash([]);
 
       const sc = toScreen(r.center.x, r.center.y);
-      ctx.fillStyle = strokeColor.replace('0.4', '0.9');
+      ctx.fillStyle = DRAW_COLORS.roomLabel;
       ctx.font = `600 ${Math.max(10, Math.min(14, scale * 200))}px Inter, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(r.name, sc.x, sc.y);
       ctx.font = `500 ${Math.max(9, Math.min(12, scale * 160))}px Inter, sans-serif`;
-      ctx.fillStyle = '#6b7280';
+      ctx.fillStyle = DRAW_COLORS.roomMeta;
       ctx.fillText(`${r.area.toFixed(1)} м²`, sc.x, sc.y + Math.max(10, scale * 180));
       ctx.restore();
     }
@@ -1972,8 +2206,10 @@
       const geometry = getWallScreenGeometry(w);
       const isSelected = isItemSelected('wall', w.id);
       const style = getWallSurfaceStyle(isSelected);
-      const startJoined = getWallJointItemsForEndpoint(jointMap, w, 'start').length > 1;
-      const endJoined = getWallJointItemsForEndpoint(jointMap, w, 'end').length > 1;
+      const startJoined = getWallJointItemsForEndpoint(jointMap, w, 'start').length > 1 ||
+        isWallEndpointCoveredByAnotherWall(w, 'start');
+      const endJoined = getWallJointItemsForEndpoint(jointMap, w, 'end').length > 1 ||
+        isWallEndpointCoveredByAnotherWall(w, 'end');
 
       function traceWall() {
         ctx.beginPath();
@@ -2005,7 +2241,7 @@
 
       // wall length label
       if (scale > 0.08) {
-        const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
+        const len = getWallLength(w);
         const mx = (geometry.p1.x + geometry.p2.x) / 2;
         const my = (geometry.p1.y + geometry.p2.y) / 2;
         const side = getWallInteriorSide(w);
@@ -2018,7 +2254,7 @@
           },
           geometry.angle,
           {
-            textColor: isSelected ? '#1d4ed8' : '#6b7280'
+            textColor: isSelected ? DRAW_COLORS.wallStrokeSelected : DRAW_COLORS.roomMeta
           }
         );
       }
@@ -2067,29 +2303,33 @@
             ctx.beginPath();
             ctx.rect(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
           }, style.fill);
-
-          ctx.save();
-          ctx.strokeStyle = style.stroke;
-          ctx.lineWidth = selected ? 1.5 : 1;
-          ctx.beginPath();
-          if (vertical.direction.y > 0) {
-            ctx.moveTo(rectLeft, rectTop);
-            ctx.lineTo(rectRight, rectTop);
-          } else {
-            ctx.moveTo(rectLeft, rectBottom);
-            ctx.lineTo(rectRight, rectBottom);
-          }
-          if (horizontal.direction.x > 0) {
-            ctx.moveTo(rectLeft, rectTop);
-            ctx.lineTo(rectLeft, rectBottom);
-          } else {
-            ctx.moveTo(rectRight, rectTop);
-            ctx.lineTo(rectRight, rectBottom);
-          }
-          ctx.stroke();
-          ctx.restore();
         }
       }
+    }
+  }
+
+  function drawSelectedWallHandles() {
+    if (tool !== 'select') return;
+    const wall = getSelectedWall();
+    if (!wall) return;
+
+    for (const handle of getWallResizeHandles(wall)) {
+      const isActive = wallResizeState &&
+        wallResizeState.wallId === wall.id &&
+        wallResizeState.endpoint === handle.endpoint;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(handle.screen.x, handle.screen.y, isActive ? 7.5 : 6.5, 0, Math.PI * 2);
+      ctx.fillStyle = DRAW_COLORS.handleFill;
+      ctx.fill();
+      ctx.strokeStyle = isActive ? DRAW_COLORS.handleActive : DRAW_COLORS.handleStroke;
+      ctx.lineWidth = isActive ? 2.5 : 1.8;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(handle.screen.x, handle.screen.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = isActive ? DRAW_COLORS.handleActive : DRAW_COLORS.handleStroke;
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -2119,10 +2359,10 @@
     const dy = Math.cos(angle) * halfT;
 
     const isSelected = !isHover && isItemSelected('opening', op.id);
-    const color = op.type === 'window' ? '#2563eb' : '#d97706';
+    const color = op.type === 'window' ? DRAW_COLORS.windowStroke : DRAW_COLORS.doorStroke;
     const fillColor = op.type === 'window'
-      ? (isHover ? 'rgba(37,99,235,0.25)' : '#dbeafe')
-      : (isHover ? 'rgba(217,119,6,0.25)' : '#fef3c7');
+      ? (isHover ? DRAW_COLORS.windowHover : DRAW_COLORS.windowFill)
+      : (isHover ? DRAW_COLORS.doorHover : DRAW_COLORS.doorFill);
     const doorHinge = op.hinge || defaultDoorHinge;
     const doorSwing = op.swing ?? defaultDoorSwing;
 
@@ -2133,7 +2373,7 @@
     ctx.lineTo(p2.x - dx, p2.y - dy);
     ctx.lineTo(p1.x - dx, p1.y - dy);
     ctx.closePath();
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#fcfcfd';
     ctx.fill();
     ctx.fillStyle = fillColor;
     ctx.fill();
@@ -2270,9 +2510,9 @@
 
     const distStart = Math.round(op.t * Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) - op.width / 2);
     const distEnd = Math.round(Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) - (op.t * Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) + op.width / 2));
-    drawDimension(wallStart, openingStart, `${distStart} мм`, 'rgba(30,41,59,0.6)');
-    drawDimension(openingStart, openingEnd, `${op.width} мм`, op.type === 'window' ? '#2563eb' : '#d97706');
-    drawDimension(openingEnd, wallEnd, `${distEnd} мм`, 'rgba(30,41,59,0.6)');
+    drawDimension(wallStart, openingStart, `${distStart} мм`, DRAW_COLORS.dimension);
+    drawDimension(openingStart, openingEnd, `${op.width} мм`, op.type === 'window' ? DRAW_COLORS.windowStroke : DRAW_COLORS.doorStroke);
+    drawDimension(openingEnd, wallEnd, `${distEnd} мм`, DRAW_COLORS.dimension);
   }
 
   function drawHoverOpening() {
@@ -2292,7 +2532,7 @@
     ctx.save();
     ctx.translate(originX, originY);
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.strokeStyle = tool === 'window' ? 'rgba(37,99,235,0.75)' : 'rgba(217,119,6,0.75)';
+    ctx.strokeStyle = tool === 'window' ? DRAW_COLORS.windowStroke : DRAW_COLORS.doorStroke;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.roundRect ? ctx.roundRect(-8, -8, ghostWidth + 16, ghostDepth + 34, 10) : ctx.rect(-8, -8, ghostWidth + 16, ghostDepth + 34);
@@ -2301,9 +2541,9 @@
 
     ctx.beginPath();
     ctx.rect(0, 0, ghostWidth, ghostDepth);
-    ctx.fillStyle = tool === 'window' ? 'rgba(37,99,235,0.14)' : 'rgba(217,119,6,0.14)';
+    ctx.fillStyle = tool === 'window' ? DRAW_COLORS.windowHover : DRAW_COLORS.doorHover;
     ctx.fill();
-    ctx.strokeStyle = tool === 'window' ? '#2563eb' : '#d97706';
+    ctx.strokeStyle = tool === 'window' ? DRAW_COLORS.windowStroke : DRAW_COLORS.doorStroke;
     ctx.stroke();
 
     if (tool === 'window') {
@@ -2334,7 +2574,7 @@
       ctx.setLineDash([]);
     }
 
-    ctx.fillStyle = '#475569';
+    ctx.fillStyle = DRAW_COLORS.roomLabel;
     ctx.font = '600 10px Inter, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -2365,9 +2605,9 @@
     ctx.lineTo(p2.x - dx, p2.y - dy);
     ctx.lineTo(p1.x - dx, p1.y - dy);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(37,99,235,0.12)';
+    ctx.fillStyle = DRAW_COLORS.previewFill;
     ctx.fill();
-    ctx.strokeStyle = '#2563eb';
+    ctx.strokeStyle = DRAW_COLORS.previewStroke;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 4]);
     ctx.stroke();
@@ -2379,7 +2619,7 @@
     ctx.beginPath();
     ctx.moveTo(ps1.x, ps1.y);
     ctx.lineTo(ps2.x, ps2.y);
-    ctx.strokeStyle = 'rgba(37,99,235,0.3)';
+    ctx.strokeStyle = DRAW_COLORS.previewCenterLine;
     ctx.lineWidth = 0.8;
     ctx.setLineDash([3, 4]);
     ctx.stroke();
@@ -2389,7 +2629,7 @@
     // start anchor (chain point)
     ctx.beginPath();
     ctx.arc(ps1.x, ps1.y, chainMode ? 6 : 4, 0, Math.PI*2);
-    ctx.fillStyle = chainMode ? '#2563eb' : '#3b82f6';
+    ctx.fillStyle = chainMode ? DRAW_COLORS.handleActive : DRAW_COLORS.previewStroke;
     ctx.fill();
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1.5;
@@ -2399,11 +2639,11 @@
     const snapType = drawEnd && drawEnd.snapType;
     const endSnap = !!snapType || (drawEnd && drawEnd.snappedToEndpoint);
     const snapColor = {
-      endpoint: '#f59e0b',
-      midpoint: '#10b981',
-      intersection: '#8b5cf6',
-      perpendicular: '#ef4444'
-    }[snapType] || (endSnap ? '#f59e0b' : '#2563eb');
+      endpoint: DRAW_COLORS.endpoint,
+      midpoint: DRAW_COLORS.midpoint,
+      intersection: DRAW_COLORS.intersection,
+      perpendicular: DRAW_COLORS.perpendicular
+    }[snapType] || (endSnap ? DRAW_COLORS.endpoint : DRAW_COLORS.previewStroke);
     ctx.beginPath();
     ctx.arc(ps2.x, ps2.y, endSnap ? 8 : 4, 0, Math.PI*2);
     ctx.fillStyle = snapColor;
@@ -2415,12 +2655,12 @@
       ctx.beginPath();
       ctx.arc(ps2.x, ps2.y, 14, 0, Math.PI*2);
       ctx.strokeStyle = snapType === 'endpoint'
-        ? 'rgba(245,158,11,0.5)'
+        ? 'rgba(55,65,81,0.35)'
         : snapType === 'midpoint'
-          ? 'rgba(16,185,129,0.45)'
+          ? 'rgba(107,114,128,0.3)'
           : snapType === 'intersection'
-            ? 'rgba(139,92,246,0.45)'
-            : 'rgba(239,68,68,0.45)';
+            ? 'rgba(17,24,39,0.3)'
+            : 'rgba(156,163,175,0.35)';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -2442,7 +2682,7 @@
     // chain mode indicator in top left of canvas
     if (chainMode) {
       ctx.save();
-      ctx.fillStyle = 'rgba(37,99,235,0.9)';
+      ctx.fillStyle = 'rgba(55,65,81,0.92)';
       ctx.beginPath();
       // small chain icon label
       ctx.roundRect ? ctx.roundRect(8, 32, 130, 20, 4) : (() => { ctx.rect(8, 32, 130, 20); })();
@@ -2459,6 +2699,7 @@
   // ─── TOOL SELECTION ──────────────────────────────────────────────
   function setTool(t) {
     tool = t;
+    wallResizeState = null;
     if (t !== 'wall') {
       resetDrawingState();
     }
@@ -2483,6 +2724,7 @@
   function clearSelection() {
     selectedItems = [];
     syncSelectedId();
+    wallResizeState = null;
     editPanel.style.display = 'none';
     editContent.innerHTML = '';
     syncDoorControlButtons();
@@ -2515,11 +2757,25 @@
     if (selectedId.type === 'wall') {
       const w = walls.find(w => w.id === selectedId.id);
       if (!w) return;
-      const len = Math.round(Math.hypot(w.x2-w.x1, w.y2-w.y1));
+      const len = Math.round(getWallLength(w));
       html = `
-        <div class="edit-row"><label>Длина</label><b>${len} мм</b></div>
+        <div class="param-group">
+          <div class="param-label">Длина <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" min="20" step="1" value="${len}" data-wall-length-input>
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Фиксировать край</div>
+          <div class="choice-grid">
+            <button class="choice-btn compact${wallLengthAnchor === 'start' ? ' active' : ''}" type="button" data-wall-anchor="start">Начало</button>
+            <button class="choice-btn compact${wallLengthAnchor === 'end' ? ' active' : ''}" type="button" data-wall-anchor="end">Конец</button>
+          </div>
+        </div>
         <div class="edit-row"><label>Толщина</label><b>${w.thickness} мм</b></div>
         <div class="edit-row"><label>Высота</label><b>${w.height} мм</b></div>
+        <div class="edit-note">Длину можно ввести вручную или потянуть круглые маркеры на концах стены прямо на плане.</div>
       `;
     } else if (selectedId.type === 'opening') {
       const op = openings.find(o => o.id === selectedId.id);
@@ -2556,6 +2812,13 @@
   editContent.addEventListener('click', e => {
     if (selectedItems.length !== 1) return;
 
+    const wallAnchorBtn = e.target.closest('[data-wall-anchor]');
+    if (wallAnchorBtn && selectedId && selectedId.type === 'wall') {
+      wallLengthAnchor = wallAnchorBtn.dataset.wallAnchor === 'end' ? 'end' : 'start';
+      updateEditPanel();
+      return;
+    }
+
     const hingeBtn = e.target.closest('[data-edit-door-hinge]');
     if (hingeBtn && selectedId && selectedId.type === 'opening') {
       updateDoorOpening(selectedId.id, { hinge: hingeBtn.dataset.editDoorHinge });
@@ -2566,6 +2829,23 @@
     if (swingBtn && selectedId && selectedId.type === 'opening') {
       updateDoorOpening(selectedId.id, { swing: Number(swingBtn.dataset.editDoorSwing) });
     }
+  });
+
+  editContent.addEventListener('keydown', e => {
+    if (!e.target.matches('[data-wall-length-input]')) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+
+  editContent.addEventListener('change', e => {
+    if (!e.target.matches('[data-wall-length-input]')) return;
+    const wall = getSelectedWall();
+    if (!wall) return;
+    const changed = setWallLength(wall, e.target.value, wallLengthAnchor, { recordHistory: true });
+    e.target.value = Math.round(getWallLength(wall));
+    if (!changed) updateEditPanel();
   });
 
   function pickObjectAtWorldPoint(wx, wy, append = false) {
@@ -2679,6 +2959,19 @@
         }
       }
     } else if (tool === 'select') {
+      const handle = hitTestWallResizeHandle(pos);
+      if (handle) {
+        wallResizeState = {
+          wallId: handle.wall.id,
+          endpoint: handle.endpoint,
+          fixedPoint: getWallContourPoint(handle.wall, handle.endpoint === 'start' ? 'end' : 'start'),
+          changed: false
+        };
+        clearSelectionPointerState();
+        canvas.style.cursor = 'grabbing';
+        return;
+      }
+
       const hit = hitTestObjectAtWorldPoint(world.x, world.y);
       if (hit) {
         selectClickCandidate = hit;
@@ -2704,6 +2997,28 @@
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
     mouseScreen = { x: pos.x, y: pos.y };
+    if (wallResizeState) {
+      const wall = walls.find(item => item.id === wallResizeState.wallId);
+      if (!wall) {
+        wallResizeState = null;
+        redraw();
+        return;
+      }
+      currentGuideLine = null;
+      currentObjectSnap = null;
+      const movedPoint = getSnappedWallResizePoint(wallResizeState.fixedPoint, world, pos);
+      const nextStart = wallResizeState.endpoint === 'start' ? movedPoint : wallResizeState.fixedPoint;
+      const nextEnd = wallResizeState.endpoint === 'start' ? wallResizeState.fixedPoint : movedPoint;
+      if (Math.hypot(nextEnd.x - nextStart.x, nextEnd.y - nextStart.y) >= 20) {
+        const changed = applyWallUpdate(wall, nextStart, nextEnd, {
+          preserveFrom: wallResizeState.endpoint === 'start' ? 'end' : 'start'
+        });
+        wallResizeState.changed = wallResizeState.changed || changed;
+      }
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+
     if (tool === 'wall') updateWallObjectSnap(world, pos);
     else currentObjectSnap = null;
     lblCoords.textContent = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм${tool === 'wall' && currentObjectSnap ? `  ·  ${currentObjectSnap.label}` : ''}`;
@@ -2746,9 +3061,22 @@
     } else if (tool === 'wall' && !isDrawing) {
       redraw();
     }
+
+    if (tool === 'select' && !selectBoxStart) {
+      canvas.style.cursor = hitTestWallResizeHandle(pos) ? 'grab' : 'default';
+    }
   }
 
   function onMouseUp(e) {
+    if (wallResizeState) {
+      const shouldRecord = wallResizeState.changed;
+      wallResizeState = null;
+      canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+      if (shouldRecord) recordHistory();
+      redraw();
+      return;
+    }
+
     if (tool === 'select' && selectClickCandidate) {
       const hit = selectClickCandidate;
       selectClickCandidate = null;
@@ -2914,7 +3242,8 @@
       x2: e2.x, y2: e2.y,
       cx1: start.x, cy1: start.y,
       cx2: end.x, cy2: end.y,
-      thickness: thick, height: height
+      thickness: thick, height: height,
+      offset: wallOffset
     });
     redraw();
   }
