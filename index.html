@@ -1,457 +1,1657 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Renga Floor — Планировщик квартир (полная версия)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <style>
-    body { background: #1f1f1f; font-family: system-ui, -apple-system, sans-serif; }
-    #canvas { background: #2a2a2a; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
-    .renga-btn { transition: all 0.2s; }
-    .renga-btn:hover { background: #3a3a3a; }
-    .active { background: #3b82f6 !important; color: white; }
-    .floating-length {
-      position: absolute;
-      background: #111;
-      color: #3b82f6;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 14px;
-      pointer-events: none;
-      box-shadow: 0 0 10px rgba(59,130,246,0.5);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PlanEditor — 2D Планировщик</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+  :root {
+    --bg: #f0f2f5;
+    --panel-bg: #ffffff;
+    --panel-border: #dde1e8;
+    --topbar-bg: #ffffff;
+    --topbar-border: #dde1e8;
+    --canvas-bg: #ffffff;
+    --grid-minor: #e8eaee;
+    --grid-major: #c8cdd8;
+    --text-primary: #1a1f2e;
+    --text-secondary: #5a6478;
+    --text-hint: #8892a4;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-bg: #eff6ff;
+    --btn-bg: #f4f6fa;
+    --btn-border: #dde1e8;
+    --btn-hover-bg: #eaedف5;
+    --tool-active-bg: #2563eb;
+    --tool-active-color: #fff;
+    --section-title: #0f172a;
+    --input-border: #dde1e8;
+    --input-bg: #f8fafc;
+    --wall-fill: #e8eaee;
+    --wall-stroke: #4a5568;
+    --window-color: #2563eb;
+    --door-color: #d97706;
+    --room-fill: rgba(37, 99, 235, 0.04);
+    --room-stroke: rgba(37, 99, 235, 0.3);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  /* ── TOP BAR ──────────────────────────────── */
+  .topbar {
+    height: 44px;
+    background: var(--topbar-bg);
+    border-bottom: 1px solid var(--topbar-border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 6px;
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .topbar-logo {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.3px;
+    margin-right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .topbar-logo span {
+    display: inline-block;
+    width: 20px; height: 20px;
+    background: var(--accent);
+    border-radius: 4px;
+  }
+
+  .topbar-sep { width: 1px; height: 22px; background: var(--panel-border); margin: 0 4px; flex-shrink: 0; }
+
+  .tb-btn {
+    height: 30px;
+    padding: 0 10px;
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+    transition: background 0.12s, border-color 0.12s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .tb-btn:hover { background: #eaeff8; border-color: #b0bcd4; }
+  .tb-btn:active { background: #dde5f5; }
+
+  .snap-badge {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  /* ── MAIN LAYOUT ─────────────────────────── */
+  .app-body {
+    display: flex;
+    height: calc(100vh - 44px);
+    overflow: hidden;
+  }
+
+  /* ── CANVAS AREA ─────────────────────────── */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--canvas-bg);
+  }
+
+  #planCanvas {
+    display: block;
+    cursor: crosshair;
+    background: var(--canvas-bg);
+  }
+
+  /* Length input overlay */
+  #lengthOverlay {
+    display: none;
+    position: absolute;
+    left: 0; top: 0;
+    pointer-events: none;
+    z-index: 20;
+  }
+  #lengthLabel {
+    position: absolute;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+    transform: translate(-50%, -130%);
+    pointer-events: none;
+  }
+
+  /* Status bar */
+  .statusbar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 26px;
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(4px);
+    border-top: 1px solid var(--panel-border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 20px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    z-index: 5;
+  }
+  .statusbar span b { color: var(--text-primary); font-weight: 600; }
+
+  /* ── RIGHT PANEL ─────────────────────────── */
+  .right-panel {
+    width: 264px;
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: -3px 0 10px rgba(0,0,0,0.04);
+  }
+
+  .rp-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .rp-scroll::-webkit-scrollbar { width: 4px; }
+  .rp-scroll::-webkit-scrollbar-track { background: transparent; }
+  .rp-scroll::-webkit-scrollbar-thumb { background: #d0d6e2; border-radius: 4px; }
+
+  .rp-section {
+    border-bottom: 1px solid var(--panel-border);
+    padding: 14px 14px 16px;
+  }
+
+  .rp-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-hint);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 12px;
+  }
+
+  /* Tool grid */
+  .tool-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .tool-btn {
+    aspect-ratio: 1;
+    background: var(--btn-bg);
+    border: 1.5px solid var(--btn-border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+    transition: all 0.12s;
+    padding: 6px 4px 5px;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .tool-btn:hover { background: var(--accent-bg); border-color: #93c5fd; color: var(--accent); }
+  .tool-btn:hover svg { stroke: var(--accent); }
+  .tool-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.35);
+  }
+  .tool-btn.active svg { stroke: #fff; }
+  .tool-btn svg { flex-shrink: 0; }
+
+  /* Params */
+  .param-group { margin-bottom: 10px; }
+  .param-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: 4px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .param-unit { color: var(--text-hint); font-size: 10px; }
+
+  .param-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1.5px solid var(--input-border);
+    border-radius: 7px;
+    background: var(--input-bg);
+    overflow: hidden;
+    transition: border-color 0.12s;
+  }
+  .param-input-wrap:focus-within { border-color: var(--accent); background: #fff; }
+
+  .param-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-primary);
+    padding: 7px 8px;
+    outline: none;
+    font-weight: 500;
+    user-select: text;
+  }
+  .param-input-unit {
+    font-size: 11px;
+    color: var(--text-hint);
+    padding: 0 8px 0 0;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .hint-box {
+    background: var(--accent-bg);
+    border: 1px solid #bfdbfe;
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #1e40af;
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+  .hint-box b { font-weight: 600; }
+
+  /* Explication table panel */
+  .expl-panel {
+    flex-shrink: 0;
+    border-top: 1px solid var(--panel-border);
+    max-height: 220px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .expl-header {
+    padding: 10px 14px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .expl-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-hint);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .expl-count {
+    font-size: 11px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-weight: 600;
+  }
+
+  .expl-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .expl-scroll::-webkit-scrollbar { width: 4px; }
+  .expl-scroll::-webkit-scrollbar-thumb { background: #d0d6e2; border-radius: 4px; }
+
+  .expl-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+  }
+  .expl-table thead th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 5px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--panel-border);
+    position: sticky; top: 0; z-index: 1;
+  }
+  .expl-table tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #f0f2f5;
+    color: var(--text-primary);
+  }
+  .expl-table tbody tr:hover td { background: var(--accent-bg); }
+  .expl-table .empty-row td { color: var(--text-hint); font-style: italic; text-align: center; padding: 12px; }
+
+  .room-dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  /* Editing panel (selected object) */
+  #editPanel { display: none; }
+  .edit-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .edit-row label { flex: 1; font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+
+  .delete-btn {
+    width: 100%;
+    padding: 8px;
+    background: #fff5f5;
+    border: 1.5px solid #fecaca;
+    border-radius: 7px;
+    color: #dc2626;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s;
+    margin-top: 4px;
+  }
+  .delete-btn:hover { background: #fee2e2; border-color: #f87171; }
+
+  /* Zoom controls */
+  .zoom-controls {
+    position: absolute;
+    bottom: 36px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10;
+  }
+  .zoom-btn {
+    width: 30px; height: 30px;
+    background: #fff;
+    border: 1.5px solid var(--btn-border);
+    border-radius: 7px;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    box-shadow: var(--shadow-sm);
+    transition: all 0.12s;
+  }
+  .zoom-btn:hover { background: var(--accent-bg); color: var(--accent); border-color: #93c5fd; }
+
+  /* Wall offset buttons */
+  .offset-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 4px 5px;
+    background: var(--btn-bg);
+    border: 1.5px solid var(--btn-border);
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.12s;
+    font-family: inherit;
+  }
+  .offset-btn:hover { background: var(--accent-bg); border-color: #93c5fd; color: var(--accent); }
+  .offset-btn.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+</style>
 </head>
-<body class="h-screen flex flex-col text-white overflow-hidden">
+<body>
 
-  <!-- ВЕРХНЯЯ ПАНЕЛЬ (как в Renga) -->
-  <div class="h-14 bg-[#2a2a2a] border-b border-[#444] flex items-center px-6 gap-6 text-sm">
-    <div class="font-bold text-2xl flex items-center gap-2">
-      <i class="fa-solid fa-cube"></i>
-      Renga Floor
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <span></span>
+    PlanEditor
+  </div>
+  <div class="topbar-sep"></div>
+  <button class="tb-btn" id="btnNew">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Новый
+  </button>
+  <div class="topbar-sep"></div>
+  <button class="tb-btn" id="btnRecalc">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    Пересчитать помещения
+  </button>
+  <div class="snap-badge" id="snapBadge">Привязка: 10 мм</div>
+</div>
+
+<!-- MAIN -->
+<div class="app-body">
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap" id="canvasWrap">
+    <canvas id="planCanvas"></canvas>
+
+    <div id="lengthOverlay">
+      <div id="lengthLabel">0 мм</div>
     </div>
-    
-    <div class="flex items-center gap-2">
-      <button onclick="newProject()" class="renga-btn flex items-center gap-2 px-4 py-2 rounded hover:bg-[#3a3a3a]">
-        <i class="fa-solid fa-file"></i> Новый
-      </button>
-      <button onclick="saveProject()" class="renga-btn flex items-center gap-2 px-4 py-2 rounded hover:bg-[#3a3a3a]">
-        <i class="fa-solid fa-floppy-disk"></i> Сохранить
-      </button>
-      <button onclick="loadProject()" class="renga-btn flex items-center gap-2 px-4 py-2 rounded hover:bg-[#3a3a3a]">
-        <i class="fa-solid fa-folder-open"></i> Открыть
-      </button>
+
+    <div class="zoom-controls">
+      <div class="zoom-btn" id="btnZoomIn" title="Увеличить">+</div>
+      <div class="zoom-btn" id="btnZoomOut" title="Уменьшить">−</div>
+      <div class="zoom-btn" id="btnZoomReset" title="Сбросить" style="font-size:11px;font-weight:600;">1:1</div>
     </div>
 
-    <div class="flex-1"></div>
-
-    <div class="flex items-center gap-4 text-xs text-gray-400">
-      <div>Масштаб: <span id="scale" class="text-white">1:100 (1м = 50px)</span></div>
-      <button onclick="undo()" class="renga-btn px-3 py-1 rounded"><i class="fa-solid fa-rotate-left"></i></button>
-      <button onclick="redo()" class="renga-btn px-3 py-1 rounded"><i class="fa-solid fa-rotate-right"></i></button>
-      <button onclick="deleteSelected()" class="renga-btn px-4 py-1 bg-red-600 hover:bg-red-700 rounded">Удалить</button>
+    <div class="statusbar">
+      <span>Инструмент: <b id="lblTool">Выбор</b></span>
+      <span id="lblCoords">X: 0 мм &nbsp; Y: 0 мм</span>
+      <span id="lblLen" style="display:none">Длина: <b id="lblLenVal">0</b> мм</span>
+      <span style="margin-left:auto; color: #94a3b8;">Колёсико — масштаб · ПКМ-тяг — панорама · Shift — привязка 1м</span>
     </div>
   </div>
 
-  <div class="flex flex-1 overflow-hidden">
-    
-    <!-- ХОЛСТ -->
-    <div class="flex-1 flex items-center justify-center bg-[#222] p-8 overflow-auto relative" id="canvas-container">
-      <canvas id="canvas" width="1600" height="1000"></canvas>
+  <!-- RIGHT PANEL -->
+  <div class="right-panel">
+    <div class="rp-scroll">
+
+      <!-- TOOLS -->
+      <div class="rp-section">
+        <div class="rp-section-title">Инструменты</div>
+        <div class="tool-grid">
+          <div class="tool-btn active" data-tool="select" id="toolSelect" title="Выбор / Удаление">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-7 1-4 7z"/></svg>
+            Выбор
+          </div>
+          <div class="tool-btn" data-tool="wall" id="toolWall" title="Нарисовать стену">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="1"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="2" y1="16" x2="22" y2="16"/><line x1="8" y1="4" x2="8" y2="10"/><line x1="14" y1="10" x2="14" y2="16"/><line x1="8" y1="16" x2="8" y2="20"/></svg>
+            Стена
+          </div>
+          <div class="tool-btn" data-tool="window" id="toolWindow" title="Добавить окно">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+            Окно
+          </div>
+          <div class="tool-btn" data-tool="door" id="toolDoor" title="Добавить дверь">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v17H4z"/><path d="M9 4v17"/><circle cx="7.5" cy="12.5" r="1"/></svg>
+            Дверь
+          </div>
+        </div>
+      </div>
+
+      <!-- WALL PARAMS -->
+      <div class="rp-section">
+        <div class="rp-section-title">Параметры стен</div>
+        <div class="param-group">
+          <div class="param-label">Толщина <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" id="inpWallThick" value="200" min="50" max="1000" step="10">
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Высота помещений <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" id="inpWallHeight" value="2700" min="1000" max="6000" step="100">
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Точка привязки стены</div>
+          <div style="display:flex;gap:6px;margin-top:4px" id="offsetBtns">
+            <button class="offset-btn active" data-offset="left" title="Левый край">
+              <svg width="28" height="22" viewBox="0 0 28 22"><rect x="2" y="4" width="6" height="14" rx="1" fill="#e0e7ff" stroke="#2563eb" stroke-width="1.5"/><line x1="5" y1="1" x2="5" y2="21" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2,2"/><rect x="8" y="8" width="18" height="6" rx="1" fill="#eceef2" stroke="#4a5568" stroke-width="1"/></svg>
+              Лево
+            </button>
+            <button class="offset-btn" data-offset="center" title="Центр">
+              <svg width="28" height="22" viewBox="0 0 28 22"><rect x="11" y="4" width="6" height="14" rx="1" fill="#e0e7ff" stroke="#2563eb" stroke-width="1.5"/><line x1="14" y1="1" x2="14" y2="21" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2,2"/><rect x="5" y="8" width="18" height="6" rx="1" fill="#eceef2" stroke="#4a5568" stroke-width="1"/></svg>
+              Центр
+            </button>
+            <button class="offset-btn" data-offset="right" title="Правый край">
+              <svg width="28" height="22" viewBox="0 0 28 22"><rect x="20" y="4" width="6" height="14" rx="1" fill="#e0e7ff" stroke="#2563eb" stroke-width="1.5"/><line x1="23" y1="1" x2="23" y2="21" stroke="#2563eb" stroke-width="1.5" stroke-dasharray="2,2"/><rect x="2" y="8" width="18" height="6" rx="1" fill="#eceef2" stroke="#4a5568" stroke-width="1"/></svg>
+              Право
+            </button>
+          </div>
+        </div>
+        <div class="hint-box">
+          <b>Цепочка:</b> стены рисуются подряд автоматически. <b>Esc</b> — завершить. <b>Ввод длины:</b> цифры → Enter
+        </div>
+      </div>
+
+      <!-- OPENING PARAMS -->
+      <div class="rp-section">
+        <div class="rp-section-title">Окна и двери</div>
+        <div class="param-group">
+          <div class="param-label">Ширина проёма <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" id="inpOpenWidth" value="900" min="200" max="5000" step="50">
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Высота проёма <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" id="inpOpenHeight" value="1500" min="200" max="4000" step="100">
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="hint-box">
+          Выберите инструмент и кликните на стену — проём встанет автоматически
+        </div>
+      </div>
+
+      <!-- SELECTION INFO -->
+      <div class="rp-section" id="editPanel">
+        <div class="rp-section-title">Выделенный объект</div>
+        <div id="editContent"></div>
+        <button class="delete-btn" id="btnDeleteSelected">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          Удалить
+        </button>
+      </div>
+
     </div>
 
-    <!-- ПРАВАЯ ПАНЕЛЬ (как в Renga) -->
-    <div class="w-80 bg-[#2a2a2a] border-l border-[#444] flex flex-col">
-
-      <!-- Инструменты -->
-      <div class="p-5 border-b border-[#444]">
-        <div class="text-xs uppercase text-gray-400 mb-3">Инструменты</div>
-        <div class="grid grid-cols-4 gap-3">
-          <button onclick="setTool('select')" id="btn-select" class="active flex flex-col items-center py-3 rounded-xl">
-            <i class="fa-solid fa-mouse-pointer text-3xl"></i>
-            <span class="text-xs mt-1">Выбор</span>
-          </button>
-          <button onclick="setTool('wall')" id="btn-wall" class="flex flex-col items-center py-3 rounded-xl">
-            <i class="fa-solid fa-grip-lines-vertical text-3xl"></i>
-            <span class="text-xs mt-1">Стена</span>
-          </button>
-          <button onclick="setTool('door')" id="btn-door" class="flex flex-col items-center py-3 rounded-xl">
-            <i class="fa-solid fa-door-open text-3xl"></i>
-            <span class="text-xs mt-1">Дверь</span>
-          </button>
-          <button onclick="setTool('window')" id="btn-window" class="flex flex-col items-center py-3 rounded-xl">
-            <i class="fa-solid fa-window-maximize text-3xl"></i>
-            <span class="text-xs mt-1">Окно</span>
-          </button>
-        </div>
+    <!-- EXPLICATION TABLE -->
+    <div class="expl-panel">
+      <div class="expl-header">
+        <span class="expl-title">Экспликация помещений</span>
+        <span class="expl-count" id="roomCount">0</span>
       </div>
-
-      <!-- ДИНАМИЧЕСКИЕ СВОЙСТВА -->
-      <div class="p-5 flex-1 overflow-auto" id="properties-panel">
-        <div id="properties-content">
-          <!-- Заполняется JS в зависимости от выбранного объекта -->
-          <div class="text-center text-gray-400 py-8">Выберите объект</div>
-        </div>
-      </div>
-
-      <!-- ЭКСПОЛИКАЦИЯ -->
-      <div class="border-t border-[#444] flex flex-col h-96">
-        <div class="px-5 py-4 text-xs uppercase text-gray-400 border-b border-[#444] flex justify-between items-center">
-          <span>Экспликация помещений</span>
-          <button onclick="calculateRooms()" class="text-xs bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded">Пересчитать</button>
-        </div>
-        <div class="flex-1 overflow-auto p-4" id="expl-table">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-gray-400 text-xs">
-                <th class="text-left pb-2">Помещение</th>
-                <th class="text-right pb-2">Площадь, м²</th>
-                <th class="text-right pb-2">Объём, м³</th>
-              </tr>
-            </thead>
-            <tbody id="rooms-body" class="text-white divide-y divide-[#444]"></tbody>
-          </table>
-        </div>
+      <div class="expl-scroll">
+        <table class="expl-table">
+          <thead>
+            <tr>
+              <th>Помещение</th>
+              <th>Пл. м²</th>
+              <th>Об. м³</th>
+              <th>Выч. м²</th>
+            </tr>
+          </thead>
+          <tbody id="explBody">
+            <tr class="empty-row"><td colspan="4">Нарисуйте стены и нажмите «Пересчитать»</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
-  </div>
 
-  <!-- ПЛАВАЮЩАЯ ПОДСКАЗКА ДЛИНЫ -->
-  <div id="length-display" class="floating-length hidden"></div>
+  </div><!-- /right-panel -->
+</div><!-- /app-body -->
 
-  <script>
-    // =============== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===============
-    let canvas;
-    let currentTool = 'select';
-    let isDrawing = false;
-    let startX = 0, startY = 0;
-    let currentWall = null;
-    let walls = [];
-    let doors = [];
-    let windows = [];
-    let rooms = [];
-    let currentInput = '';           // для ввода длины цифрами
-    let selectedObject = null;
-    const SCALE = 50;                // 1 метр = 50 пикселей
+<script>
+(function() {
+  'use strict';
 
-    // =============== ИНИЦИАЛИЗАЦИЯ ===============
-    function initCanvas() {
-      canvas = new fabric.Canvas('canvas', {
-        width: 1600,
-        height: 1000,
-        backgroundColor: '#2a2a2a',
-        selection: true,
-        preserveObjectStacking: true,
-      });
+  // ─── STATE ────────────────────────────────────────────────────────
+  let walls = [];     // {id, x1,y1,x2,y2, thickness, height}
+  let openings = [];  // {id, wallId, t, width, height, type}
+  let rooms = [];     // {polygon, area, volume, openingsArea, name, color}
+  let idWall = 1, idOpen = 1;
 
-      // Сетка
-      const grid = 20;
-      for (let i = 0; i <= 1600; i += grid) {
-        canvas.add(new fabric.Line([i, 0, i, 1000], { stroke: '#3a3a3a', selectable: false, evented: false }));
-      }
-      for (let i = 0; i <= 1000; i += grid) {
-        canvas.add(new fabric.Line([0, i, 1600, i], { stroke: '#3a3a3a', selectable: false, evented: false }));
-      }
+  let tool = 'select';
+  let isDrawing = false;
+  let drawStart = null;       // world coords of start (centerline)
+  let drawEnd = null;
+  let chainMode = false;      // auto-continue from last wall endpoint
+  let lengthInput = '';
+  let lengthMode = false;
 
-      // События
-      canvas.on('mouse:down', handleMouseDown);
-      canvas.on('mouse:move', handleMouseMove);
-      canvas.on('mouse:up', handleMouseUp);
-      canvas.on('selection:created', handleSelection);
-      canvas.on('selection:cleared', handleSelectionCleared);
+  // Wall offset: 'left' | 'center' | 'right'
+  // Offset is perpendicular to draw direction
+  let wallOffset = 'center';
 
-      // Клавиатура для ввода длины (цифры + Enter)
-      document.addEventListener('keydown', handleKeyDown);
+  let selectedId = null;  // { type: 'wall'|'opening', id }
 
-      console.log('%c✅ Полноценный Renga Floor запущен!', 'color:#3b82f6; font-size:16px');
-    }
+  // viewport
+  let scale = 0.12;
+  let panX = 200, panY = 150;
 
-    // =============== ИНСТРУМЕНТЫ ===============
-    function setTool(tool) {
-      currentTool = tool;
-      document.querySelectorAll('#canvas-container button').forEach(b => b.classList.remove('active'));
-      const btn = document.getElementById('btn-' + tool);
-      if (btn) btn.classList.add('active');
-      canvas.discardActiveObject();
-    }
+  // input flags
+  let shiftDown = false;
+  let ctrlDown = false;
+  let isPanning = false;
+  let panStartX, panStartY, panStartOffX, panStartOffY;
 
-    // =============== РИСОВАНИЕ СТЕН + ВВОД ДЛИНЫ ===============
-    function handleMouseDown(opt) {
-      const pointer = canvas.getPointer(opt.e);
+  // colors for rooms
+  const ROOM_COLORS = [
+    'rgba(37,99,235,0.07)', 'rgba(16,185,129,0.07)', 'rgba(245,158,11,0.07)',
+    'rgba(239,68,68,0.07)', 'rgba(139,92,246,0.07)', 'rgba(236,72,153,0.07)',
+    'rgba(14,165,233,0.07)', 'rgba(132,204,22,0.07)'
+  ];
+  const ROOM_STROKES = [
+    'rgba(37,99,235,0.4)', 'rgba(16,185,129,0.4)', 'rgba(245,158,11,0.4)',
+    'rgba(239,68,68,0.4)', 'rgba(139,92,246,0.4)', 'rgba(236,72,153,0.4)',
+    'rgba(14,165,233,0.4)', 'rgba(132,204,22,0.4)'
+  ];
 
-      if (currentTool === 'wall') {
-        isDrawing = true;
-        startX = pointer.x;
-        startY = pointer.y;
-        currentInput = '';
+  // ─── DOM ─────────────────────────────────────────────────────────
+  const canvas = document.getElementById('planCanvas');
+  const ctx = canvas.getContext('2d');
+  const canvasWrap = document.getElementById('canvasWrap');
+  const lengthOverlay = document.getElementById('lengthOverlay');
+  const lengthLabel = document.getElementById('lengthLabel');
+  const lblTool = document.getElementById('lblTool');
+  const lblCoords = document.getElementById('lblCoords');
+  const lblLen = document.getElementById('lblLen');
+  const lblLenVal = document.getElementById('lblLenVal');
+  const snapBadge = document.getElementById('snapBadge');
+  const explBody = document.getElementById('explBody');
+  const roomCount = document.getElementById('roomCount');
+  const editPanel = document.getElementById('editPanel');
+  const editContent = document.getElementById('editContent');
 
-        const thickness = parseFloat(document.getElementById('wall-thickness') ? document.getElementById('wall-thickness').value : 200) / 2;
+  const inpWallThick = document.getElementById('inpWallThick');
+  const inpWallHeight = document.getElementById('inpWallHeight');
+  const inpOpenWidth = document.getElementById('inpOpenWidth');
+  const inpOpenHeight = document.getElementById('inpOpenHeight');
 
-        currentWall = new fabric.Rect({
-          left: startX,
-          top: startY,
-          width: 20,
-          height: thickness * 2,
-          fill: '#666666',
-          stroke: '#ffffff',
-          strokeWidth: 3,
-          originX: 'left',
-          originY: 'center',
-          selectable: false,
-          angle: 0,
-          data: { type: 'wall', thickness: thickness * 2, height: 3 }
-        });
+  // ─── RESIZE ──────────────────────────────────────────────────────
+  function resizeCanvas() {
+    const r = canvasWrap.getBoundingClientRect();
+    canvas.width = r.width;
+    canvas.height = r.height;
+    redraw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
 
-        canvas.add(currentWall);
-        walls.push(currentWall);
-        return;
-      }
-
-      if (currentTool === 'door' || currentTool === 'window') {
-        // Ищем ближайшую стену и ставим проём на неё
-        let nearestWall = null;
-        let minDist = Infinity;
-
-        walls.forEach(wall => {
-          const dist = fabric.util.getDistanceFromPointToLine(
-            pointer,
-            { x: wall.left, y: wall.top },
-            { x: wall.left + wall.width * Math.cos(wall.angle * Math.PI / 180), y: wall.top + wall.width * Math.sin(wall.angle * Math.PI / 180) }
-          );
-          if (dist < minDist) {
-            minDist = dist;
-            nearestWall = wall;
+  // ─── COORDINATE TRANSFORMS ───────────────────────────────────────
+  function toScreen(x, y) {
+    return { x: x * scale + panX, y: y * scale + panY };
+  }
+  function toWorld(sx, sy) {
+    return { x: (sx - panX) / scale, y: (sy - panY) / scale };
+  }
+  function snap(x, y, forceNoEndpoint) {
+    const g = (shiftDown && ctrlDown) ? 1000 : shiftDown ? 100 : 10;
+    let sx = Math.round(x / g) * g;
+    let sy = Math.round(y / g) * g;
+    if (!forceNoEndpoint) {
+      const snapDist = 120;
+      for (const w of walls) {
+        for (const pt of [{x: w.x1, y: w.y1}, {x: w.x2, y: w.y2}]) {
+          if (Math.hypot(x - pt.x, y - pt.y) < snapDist) {
+            return { x: pt.x, y: pt.y, snappedToEndpoint: true };
           }
-        });
-
-        if (nearestWall && minDist < 80) {
-          const isDoor = currentTool === 'door';
-          const obj = new fabric.Rect({
-            left: pointer.x - 15,
-            top: pointer.y - 10,
-            width: isDoor ? 60 : 80,
-            height: 20,
-            fill: isDoor ? '#222222' : '#aaaaaa',
-            stroke: '#ffffff',
-            strokeWidth: 2,
-            angle: nearestWall.angle,
-            data: { type: isDoor ? 'door' : 'window', size: isDoor ? 0.9 : 1.2 }
-          });
-          canvas.add(obj);
-          if (isDoor) doors.push(obj);
-          else windows.push(obj);
-          calculateRooms();
         }
       }
     }
+    return { x: sx, y: sy };
+  }
 
-    function handleMouseMove(opt) {
-      if (!isDrawing || !currentWall) return;
-      const pointer = canvas.getPointer(opt.e);
-      const dx = pointer.x - startX;
-      const dy = pointer.y - startY;
-      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-      const length = Math.sqrt(dx * dx + dy * dy);
+  function applyWallOffset(cx, cy, angle, offset, thickness) {
+    if (offset === 'center') return { x: cx, y: cy };
+    const px = -Math.sin(angle);
+    const py = Math.cos(angle);
+    const sign = offset === 'right' ? 1 : -1;
+    return { x: cx + sign * px * thickness / 2, y: cy + sign * py * thickness / 2 };
+  }
 
-      currentWall.set({ angle: angle, width: length });
-      currentWall.setCoords();
-      canvas.renderAll();
+  // ─── DRAW ─────────────────────────────────────────────────────────
+  function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
+    drawRoomFills();
+    drawWalls();
+    drawOpenings();
+    if (isDrawing && drawStart && drawEnd) drawTempWall();
+  }
 
-      // Показываем текущую длину
-      showLengthDisplay(pointer.x + 20, pointer.y - 30, (length / SCALE).toFixed(2) + ' м');
+  function drawGrid() {
+    const stepMin = 100, stepMaj = 1000;
+    // visible world bounds
+    const wMin = toWorld(0, 0);
+    const wMax = toWorld(canvas.width, canvas.height);
+
+    ctx.save();
+    // minor grid
+    ctx.strokeStyle = '#e8eaee';
+    ctx.lineWidth = 0.5;
+    let startX = Math.floor(wMin.x / stepMin) * stepMin;
+    let startY = Math.floor(wMin.y / stepMin) * stepMin;
+    for (let wx = startX; wx <= wMax.x + stepMin; wx += stepMin) {
+      const s = toScreen(wx, 0);
+      ctx.beginPath(); ctx.moveTo(s.x, 0); ctx.lineTo(s.x, canvas.height); ctx.stroke();
     }
-
-    function handleMouseUp() {
-      if (!isDrawing || !currentWall) return;
-      isDrawing = false;
-      currentWall.set({ selectable: true });
-      currentWall = null;
-      hideLengthDisplay();
-      calculateRooms();
+    for (let wy = startY; wy <= wMax.y + stepMin; wy += stepMin) {
+      const s = toScreen(0, wy);
+      ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(canvas.width, s.y); ctx.stroke();
     }
+    // major grid
+    ctx.strokeStyle = '#c8cdd8';
+    ctx.lineWidth = 1;
+    startX = Math.floor(wMin.x / stepMaj) * stepMaj;
+    startY = Math.floor(wMin.y / stepMaj) * stepMaj;
+    for (let wx = startX; wx <= wMax.x + stepMaj; wx += stepMaj) {
+      const s = toScreen(wx, 0);
+      ctx.beginPath(); ctx.moveTo(s.x, 0); ctx.lineTo(s.x, canvas.height); ctx.stroke();
+    }
+    for (let wy = startY; wy <= wMax.y + stepMaj; wy += stepMaj) {
+      const s = toScreen(0, wy);
+      ctx.beginPath(); ctx.moveTo(0, s.y); ctx.lineTo(canvas.width, s.y); ctx.stroke();
+    }
+    // axis labels (meters)
+    ctx.fillStyle = '#a0aab8';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    startX = Math.floor(wMin.x / stepMaj) * stepMaj;
+    for (let wx = startX; wx <= wMax.x + stepMaj; wx += stepMaj) {
+      const s = toScreen(wx, 0);
+      if (s.x > 2 && s.x < canvas.width - 2) ctx.fillText((wx/1000).toFixed(0) + 'м', s.x + 2, 12);
+    }
+    startY = Math.floor(wMin.y / stepMaj) * stepMaj;
+    for (let wy = startY; wy <= wMax.y + stepMaj; wy += stepMaj) {
+      const s = toScreen(0, wy);
+      if (s.y > 14 && s.y < canvas.height - 2) ctx.fillText((wy/1000).toFixed(0) + 'м', 2, s.y - 2);
+    }
+    ctx.restore();
+  }
 
-    // =============== ВВОД ДЛИНЫ ЦИФРАМИ (полноценный) ===============
-    function handleKeyDown(e) {
-      if (!isDrawing || !currentWall) return;
-
-      if (/^\d$/.test(e.key) || e.key === '.' || e.key === ',') {
-        currentInput += e.key === ',' ? '.' : e.key;
-        showLengthDisplay(startX + 100, startY - 30, currentInput + ' м');
+  function drawRoomFills() {
+    for (let i = 0; i < rooms.length; i++) {
+      const r = rooms[i];
+      const color = ROOM_COLORS[i % ROOM_COLORS.length];
+      const strokeColor = ROOM_STROKES[i % ROOM_STROKES.length];
+      // draw polygon
+      if (!r.polygon || r.polygon.length < 4) continue;
+      ctx.save();
+      ctx.beginPath();
+      const p0 = toScreen(r.polygon[0].x, r.polygon[0].y);
+      ctx.moveTo(p0.x, p0.y);
+      for (let j = 1; j < r.polygon.length; j++) {
+        const p = toScreen(r.polygon[j].x, r.polygon[j].y);
+        ctx.lineTo(p.x, p.y);
       }
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // room label
+      const cx = (Math.min(...r.polygon.map(p=>p.x)) + Math.max(...r.polygon.map(p=>p.x))) / 2;
+      const cy = (Math.min(...r.polygon.map(p=>p.y)) + Math.max(...r.polygon.map(p=>p.y))) / 2;
+      const sc = toScreen(cx, cy);
+      ctx.fillStyle = strokeColor.replace('0.4', '0.9');
+      ctx.font = `600 ${Math.max(10, Math.min(14, scale * 200))}px Inter, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(r.name, sc.x, sc.y);
+      ctx.font = `500 ${Math.max(9, Math.min(12, scale * 160))}px Inter, sans-serif`;
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(`${r.area.toFixed(1)} м²`, sc.x, sc.y + Math.max(10, scale * 180));
+      ctx.restore();
+    }
+  }
 
-      if (e.key === 'Enter' && currentInput) {
-        const desiredMeters = parseFloat(currentInput);
-        if (!isNaN(desiredMeters)) {
-          const targetPx = desiredMeters * SCALE;
-          const currentPx = currentWall.width;
-          const scaleFactor = targetPx / currentPx;
-          currentWall.scaleX = scaleFactor;
-          currentWall.setCoords();
-          canvas.renderAll();
+  function drawWalls() {
+    for (const w of walls) {
+      const p1 = toScreen(w.x1, w.y1);
+      const p2 = toScreen(w.x2, w.y2);
+      const angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
+      const halfT = (w.thickness / 2) * scale;
+      const dx = -Math.sin(angle) * halfT;
+      const dy = Math.cos(angle) * halfT;
+
+      const isSelected = selectedId && selectedId.type === 'wall' && selectedId.id === w.id;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(p1.x + dx, p1.y + dy);
+      ctx.lineTo(p2.x + dx, p2.y + dy);
+      ctx.lineTo(p2.x - dx, p2.y - dy);
+      ctx.lineTo(p1.x - dx, p1.y - dy);
+      ctx.closePath();
+      ctx.fillStyle = isSelected ? '#dbeafe' : '#eceef2';
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#2563eb' : '#4a5568';
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.stroke();
+
+      // wall length label
+      if (scale > 0.08) {
+        const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
+        const mx = (p1.x + p2.x) / 2;
+        const my = (p1.y + p2.y) / 2;
+        const perpX = -Math.sin(angle) * (halfT + 8);
+        const perpY = Math.cos(angle) * (halfT + 8);
+        ctx.font = '500 10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText(Math.round(len) + ' мм', mx + perpX, my + perpY);
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawOpenings() {
+    for (const op of openings) {
+      const wall = walls.find(w => w.id === op.wallId);
+      if (!wall) continue;
+      const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+      const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+      const halfW = op.width / 2;
+      const t1 = op.t - halfW / wlen;
+      const t2 = op.t + halfW / wlen;
+      const ax1 = wall.x1 + (wall.x2 - wall.x1) * t1;
+      const ay1 = wall.y1 + (wall.y2 - wall.y1) * t1;
+      const ax2 = wall.x1 + (wall.x2 - wall.x1) * t2;
+      const ay2 = wall.y1 + (wall.y2 - wall.y1) * t2;
+      const p1 = toScreen(ax1, ay1);
+      const p2 = toScreen(ax2, ay2);
+      const halfT = (wall.thickness / 2) * scale;
+      const dx = -Math.sin(angle) * halfT;
+      const dy = Math.cos(angle) * halfT;
+
+      const isSelected = selectedId && selectedId.type === 'opening' && selectedId.id === op.id;
+      const color = op.type === 'window' ? '#2563eb' : '#d97706';
+      const fillColor = op.type === 'window' ? '#dbeafe' : '#fef3c7';
+
+      ctx.save();
+      // white cutout on wall
+      ctx.beginPath();
+      ctx.moveTo(p1.x + dx, p1.y + dy);
+      ctx.lineTo(p2.x + dx, p2.y + dy);
+      ctx.lineTo(p2.x - dx, p2.y - dy);
+      ctx.lineTo(p1.x - dx, p1.y - dy);
+      ctx.closePath();
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      // opening fill
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+
+      if (op.type === 'window') {
+        // window: 3 lines across
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isSelected ? 2 : 1.5;
+        // outer border
+        ctx.strokeRect
+          ? ctx.stroke()
+          : ctx.stroke();
+        ctx.stroke();
+        // cross lines
+        for (let t = 0.25; t <= 0.75; t += 0.25) {
+          const mx = p1.x + (p2.x - p1.x) * t;
+          const my = p1.y + (p2.y - p1.y) * t;
+          ctx.beginPath();
+          ctx.moveTo(mx + dx, my + dy);
+          ctx.lineTo(mx - dx, my - dy);
+          ctx.stroke();
         }
-        currentInput = '';
-        hideLengthDisplay();
-      }
-
-      if (e.key === 'Escape') {
-        currentInput = '';
-        hideLengthDisplay();
-      }
-    }
-
-    function showLengthDisplay(x, y, text) {
-      const el = document.getElementById('length-display');
-      el.textContent = text;
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
-      el.classList.remove('hidden');
-    }
-
-    function hideLengthDisplay() {
-      document.getElementById('length-display').classList.add('hidden');
-    }
-
-    // =============== ВЫБОР ОБЪЕКТОВ И СВОЙСТВА ===============
-    function handleSelection(e) {
-      selectedObject = e.selected[0];
-      updatePropertiesPanel();
-    }
-
-    function handleSelectionCleared() {
-      selectedObject = null;
-      updatePropertiesPanel();
-    }
-
-    function updatePropertiesPanel() {
-      const panel = document.getElementById('properties-content');
-      if (!selectedObject) {
-        panel.innerHTML = `<div class="text-center text-gray-400 py-8">Выберите стену, дверь или окно</div>`;
-        return;
-      }
-
-      const type = selectedObject.data?.type || 'unknown';
-
-      let html = `<div class="text-xs uppercase text-gray-400 mb-3">Свойства ${type}</div>`;
-
-      if (type === 'wall') {
-        html += `
-          <div class="space-y-4">
-            <div>
-              <label class="block text-xs text-gray-400 mb-1">Толщина (мм)</label>
-              <input type="number" value="${selectedObject.height || 200}" onchange="updateWallThickness(this.value)" class="w-full bg-[#3a3a3a] px-4 py-3 rounded-xl text-white">
-            </div>
-            <div>
-              <label class="block text-xs text-gray-400 mb-1">Высота (м)</label>
-              <input type="number" value="${selectedObject.data?.height || 3}" step="0.1" onchange="updateWallHeight(this.value)" class="w-full bg-[#3a3a3a] px-4 py-3 rounded-xl text-white">
-            </div>
-          </div>`;
       } else {
-        html += `
-          <div>
-            <label class="block text-xs text-gray-400 mb-1">Размер (м)</label>
-            <input type="number" value="${selectedObject.data?.size || 1}" step="0.1" onchange="updateOpeningSize(this.value)" class="w-full bg-[#3a3a3a] px-4 py-3 rounded-xl text-white">
-          </div>`;
+        // door: arc swing
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isSelected ? 2 : 1.5;
+        ctx.stroke();
+        // arc
+        const cx = p1.x, cy = p1.y;
+        const r = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const startAngle = Math.atan2(p2.y - cy, p2.x - cx);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, startAngle, startAngle - Math.PI/2, true);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
-      panel.innerHTML = html;
+      ctx.restore();
+    }
+  }
+
+  function drawTempWall() {
+    if (!drawStart || !drawEnd) return;
+    const thick = parseFloat(inpWallThick.value) || 200;
+    const angle = Math.atan2(drawEnd.y - drawStart.y, drawEnd.x - drawStart.x);
+
+    // Apply offset for preview too
+    const s = applyWallOffset(drawStart.x, drawStart.y, angle, wallOffset, thick);
+    const e2 = applyWallOffset(drawEnd.x, drawEnd.y, angle, wallOffset, thick);
+
+    const p1 = toScreen(s.x, s.y);
+    const p2 = toScreen(e2.x, e2.y);
+    const halfT = (thick / 2) * scale;
+    const dx = -Math.sin(angle) * halfT;
+    const dy = Math.cos(angle) * halfT;
+    const len = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(p1.x + dx, p1.y + dy);
+    ctx.lineTo(p2.x + dx, p2.y + dy);
+    ctx.lineTo(p2.x - dx, p2.y - dy);
+    ctx.lineTo(p1.x - dx, p1.y - dy);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(37,99,235,0.12)';
+    ctx.fill();
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // center reference line
+    const ps1 = toScreen(drawStart.x, drawStart.y);
+    const ps2 = toScreen(drawEnd.x, drawEnd.y);
+    ctx.beginPath();
+    ctx.moveTo(ps1.x, ps1.y);
+    ctx.lineTo(ps2.x, ps2.y);
+    ctx.strokeStyle = 'rgba(37,99,235,0.3)';
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([3, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // start point dot
+    const snappedEnd = snap(toWorld(ps2.x, ps2.y).x, toWorld(ps2.x, ps2.y).y);
+    const isSnapEnd = drawEnd && drawEnd.snappedToEndpoint;
+
+    // start anchor (chain point)
+    ctx.beginPath();
+    ctx.arc(ps1.x, ps1.y, chainMode ? 6 : 4, 0, Math.PI*2);
+    ctx.fillStyle = chainMode ? '#2563eb' : '#3b82f6';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // end point — highlight yellow if snapped to endpoint
+    const endSnap = drawEnd && drawEnd.snappedToEndpoint;
+    ctx.beginPath();
+    ctx.arc(ps2.x, ps2.y, endSnap ? 8 : 4, 0, Math.PI*2);
+    ctx.fillStyle = endSnap ? '#f59e0b' : '#2563eb';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if (endSnap) {
+      ctx.beginPath();
+      ctx.arc(ps2.x, ps2.y, 14, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(245,158,11,0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
 
-    function updateWallThickness(val) {
-      if (selectedObject) selectedObject.height = parseFloat(val);
-      canvas.renderAll();
+    ctx.restore();
+
+    // length label
+    const midX = (ps1.x + ps2.x) / 2;
+    const midY = (ps1.y + ps2.y) / 2;
+    lengthOverlay.style.display = 'block';
+    lengthLabel.style.left = midX + 'px';
+    lengthLabel.style.top = (midY - 8) + 'px';
+    const display = lengthMode && lengthInput ? `${lengthInput}_ мм` : `${Math.round(len)} мм`;
+    lengthLabel.textContent = display;
+
+    lblLen.style.display = 'inline';
+    lblLenVal.textContent = Math.round(len);
+
+    // chain mode indicator in top left of canvas
+    if (chainMode) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(37,99,235,0.9)';
+      ctx.beginPath();
+      // small chain icon label
+      ctx.roundRect ? ctx.roundRect(8, 32, 130, 20, 4) : (() => { ctx.rect(8, 32, 130, 20); })();
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.font = '600 11px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⛓ Цепочка стен · Esc — стоп', 14, 42);
+      ctx.restore();
     }
-    function updateWallHeight(val) {
-      if (selectedObject && selectedObject.data) selectedObject.data.height = parseFloat(val);
+  }
+
+  // ─── TOOL SELECTION ──────────────────────────────────────────────
+  function setTool(t) {
+    tool = t;
+    // break chain if switching away from wall
+    if (t !== 'wall') {
+      isDrawing = false; chainMode = false; drawStart = null; drawEnd = null;
+      lengthInput = ''; lengthMode = false;
+      lengthOverlay.style.display = 'none';
+      lblLen.style.display = 'none';
     }
-    function updateOpeningSize(val) {
-      if (selectedObject && selectedObject.data) selectedObject.data.size = parseFloat(val);
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tool' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('active');
+    const labels = { select: 'Выбор', wall: 'Стена', window: 'Окно', door: 'Дверь' };
+    lblTool.textContent = labels[t] || t;
+    canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
+    if (t !== 'select') clearSelection();
+  }
+  document.querySelectorAll('.tool-btn').forEach(b => {
+    b.addEventListener('click', () => setTool(b.dataset.tool));
+  });
+
+  // ─── SELECTION ───────────────────────────────────────────────────
+  function clearSelection() {
+    selectedId = null;
+    editPanel.style.display = 'none';
+    redraw();
+  }
+
+  function selectObject(type, id) {
+    selectedId = { type, id };
+    editPanel.style.display = 'block';
+    updateEditPanel();
+    redraw();
+  }
+
+  function updateEditPanel() {
+    if (!selectedId) return;
+    let html = '';
+    if (selectedId.type === 'wall') {
+      const w = walls.find(w => w.id === selectedId.id);
+      if (!w) return;
+      const len = Math.round(Math.hypot(w.x2-w.x1, w.y2-w.y1));
+      html = `
+        <div class="edit-row"><label>Длина</label><b>${len} мм</b></div>
+        <div class="edit-row"><label>Толщина</label><b>${w.thickness} мм</b></div>
+        <div class="edit-row"><label>Высота</label><b>${w.height} мм</b></div>
+      `;
+    } else if (selectedId.type === 'opening') {
+      const op = openings.find(o => o.id === selectedId.id);
+      if (!op) return;
+      const typeLabel = op.type === 'window' ? 'Окно' : 'Дверь';
+      html = `
+        <div class="edit-row"><label>Тип</label><b>${typeLabel}</b></div>
+        <div class="edit-row"><label>Ширина</label><b>${op.width} мм</b></div>
+        <div class="edit-row"><label>Высота</label><b>${op.height} мм</b></div>
+      `;
+    }
+    editContent.innerHTML = html;
+  }
+
+  document.getElementById('btnDeleteSelected').addEventListener('click', () => {
+    if (!selectedId) return;
+    if (selectedId.type === 'wall') {
+      walls = walls.filter(w => w.id !== selectedId.id);
+      openings = openings.filter(o => o.wallId !== selectedId.id);
+    } else if (selectedId.type === 'opening') {
+      openings = openings.filter(o => o.id !== selectedId.id);
+    }
+    clearSelection();
+    computeRooms();
+  });
+
+  // ─── MOUSE EVENTS ────────────────────────────────────────────────
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('wheel', onWheel);
+
+  function getCanvasPos(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function onMouseDown(e) {
+    if (e.button === 2 || (e.button === 1)) {
+      // right-click or middle: start pan
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panStartOffX = panX;
+      panStartOffY = panY;
+      canvas.style.cursor = 'grabbing';
+      e.preventDefault();
+      return;
+    }
+    const pos = getCanvasPos(e);
+    const world = toWorld(pos.x, pos.y);
+    const snapped = snap(world.x, world.y);
+
+    if (tool === 'wall') {
+      if (isDrawing && chainMode) {
+        // Already chaining: this mousedown starts dragging from the chained point
+        // drawStart is already set — just reset drawEnd to current cursor
+        const pos2 = getCanvasPos(e);
+        const w2 = toWorld(pos2.x, pos2.y);
+        drawEnd = { ...snap(w2.x, w2.y) };
+        redraw();
+      } else {
+        // Fresh start
+        isDrawing = true;
+        chainMode = false;
+        drawStart = { x: snapped.x, y: snapped.y };
+        drawEnd = { x: snapped.x, y: snapped.y };
+        lengthInput = '';
+        lengthMode = false;
+        redraw();
+      }
+    } else if (tool === 'window' || tool === 'door') {
+      const hit = findClosestWall(world.x, world.y);
+      if (hit) {
+        const w = parseFloat(inpOpenWidth.value) || 900;
+        const h = tool === 'door' ? (parseFloat(inpOpenHeight.value) || 2000) : (parseFloat(inpOpenHeight.value) || 1500);
+        addOpening(hit.wall, hit.t, w, h, tool);
+        computeRooms();
+      }
+    } else if (tool === 'select') {
+      const hitWall = findClosestWallSel(world.x, world.y);
+      const hitOpen = findClosestOpening(world.x, world.y);
+      if (hitOpen) selectObject('opening', hitOpen.id);
+      else if (hitWall) selectObject('wall', hitWall.id);
+      else clearSelection();
+    }
+  }
+
+  function onMouseMove(e) {
+    if (isPanning) {
+      panX = panStartOffX + (e.clientX - panStartX);
+      panY = panStartOffY + (e.clientY - panStartY);
+      redraw();
+      return;
     }
 
-    function deleteSelected() {
-      if (selectedObject) {
-        canvas.remove(selectedObject);
-        walls = walls.filter(w => w !== selectedObject);
-        doors = doors.filter(d => d !== selectedObject);
-        windows = windows.filter(w => w !== selectedObject);
-        selectedObject = null;
-        canvas.renderAll();
-        calculateRooms();
+    const pos = getCanvasPos(e);
+    const world = toWorld(pos.x, pos.y);
+    const snapped = snap(world.x, world.y);
+    lblCoords.textContent = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм`;
+
+    if (isDrawing && tool === 'wall' && drawStart) {
+      let end = { ...snapped };
+
+      if (lengthMode && lengthInput) {
+        const targetLen = parseFloat(lengthInput);
+        if (!isNaN(targetLen) && targetLen > 0) {
+          const dx = end.x - drawStart.x;
+          const dy = end.y - drawStart.y;
+          const curLen = Math.hypot(dx, dy);
+          if (curLen > 0.1) {
+            end = {
+              x: drawStart.x + (dx / curLen) * targetLen,
+              y: drawStart.y + (dy / curLen) * targetLen
+            };
+          }
+        }
+      }
+
+      // carry endpoint snap flag for visual feedback
+      end.snappedToEndpoint = snapped.snappedToEndpoint || false;
+      drawEnd = end;
+      redraw();
+    }
+
+    // Highlight nearby wall endpoints when in wall tool
+    if (tool === 'wall' && !isDrawing) {
+      redraw();
+      const snapDist = 120;
+      for (const w of walls) {
+        for (const pt of [{x: w.x1, y: w.y1}, {x: w.x2, y: w.y2}]) {
+          if (Math.hypot(world.x - pt.x, world.y - pt.y) < snapDist) {
+            const s = toScreen(pt.x, pt.y);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, 8, 0, Math.PI*2);
+            ctx.strokeStyle = 'rgba(245,158,11,0.7)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+    }
+  }
+
+  function onMouseUp(e) {
+    if (isPanning) {
+      isPanning = false;
+      canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+      return;
+    }
+    if (isDrawing && tool === 'wall' && drawStart) {
+      let end = drawEnd || drawStart;
+
+      if (lengthMode && lengthInput) {
+        const targetLen = parseFloat(lengthInput);
+        if (!isNaN(targetLen) && targetLen > 0) {
+          const dx = end.x - drawStart.x;
+          const dy = end.y - drawStart.y;
+          const curLen = Math.hypot(dx, dy);
+          if (curLen > 0.1) {
+            end = {
+              x: drawStart.x + (dx / curLen) * targetLen,
+              y: drawStart.y + (dy / curLen) * targetLen
+            };
+          }
+        }
+      }
+
+      const len = Math.hypot(end.x - drawStart.x, end.y - drawStart.y);
+      if (len > 20) {
+        addWall(drawStart, end);
+        computeRooms();
+        // ── CHAIN MODE: immediately start next wall from the endpoint ──
+        drawStart = { x: end.x, y: end.y };
+        drawEnd = { x: end.x, y: end.y };
+        lengthInput = '';
+        lengthMode = false;
+        chainMode = true;
+        // isDrawing stays TRUE — next mousedown places next wall
+        redraw();
+      } else {
+        // too short: cancel
+        if (!chainMode) {
+          isDrawing = false;
+          drawStart = null;
+          drawEnd = null;
+        }
+        lengthInput = '';
+        lengthMode = false;
+        lengthOverlay.style.display = 'none';
+        lblLen.style.display = 'none';
+        redraw();
+      }
+    }
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+    const factor = e.deltaY < 0 ? 1.12 : 0.88;
+    const newScale = Math.min(2, Math.max(0.03, scale * factor));
+    panX = pos.x - (pos.x - panX) * (newScale / scale);
+    panY = pos.y - (pos.y - panY) * (newScale / scale);
+    scale = newScale;
+    redraw();
+  }
+
+  // ─── KEYBOARD ────────────────────────────────────────────────────
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Shift') {
+      shiftDown = true;
+      snapBadge.textContent = ctrlDown ? 'Привязка: 1 м' : 'Привязка: 100 мм';
+    }
+    if (e.key === 'Control') {
+      ctrlDown = true;
+      if (shiftDown) snapBadge.textContent = 'Привязка: 1 м';
+    }
+
+    if (e.key === 'Escape') {
+      if (isDrawing) {
+        isDrawing = false; chainMode = false; drawStart = null; drawEnd = null;
+        lengthInput = ''; lengthMode = false;
+        lengthOverlay.style.display = 'none';
+        lblLen.style.display = 'none';
+        redraw();
+      }
+      clearSelection();
+    }
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedId) {
+        document.getElementById('btnDeleteSelected').click();
+        e.preventDefault();
       }
     }
 
-    // =============== АВТО РАСЧЁТ КОМНАТ + ЧИСТЫЙ ОБЪЁМ ===============
-    function calculateRooms() {
-      // Простая, но рабочая модель: создаём несколько типичных комнат и вычитаем проёмы
-      // В реальном проекте здесь можно добавить полноценный shoelace + поиск контуров
-      const globalHeight = 3.0; // можно сделать динамичным позже
-
-      // Суммарная площадь проёмов
-      let totalOpeningsArea = 0;
-      doors.forEach(d => totalOpeningsArea += (d.data?.size || 0.9) * 2.1); // примерная высота проёма
-      windows.forEach(w => totalOpeningsArea += (w.data?.size || 1.2) * 1.5);
-
-      // Демо-комнаты (в будущем можно сделать настоящий поиск замкнутых контуров)
-      rooms = [
-        { name: "Гостиная", area: 34.8, openings: 2.8 },
-        { name: "Спальня", area: 19.2, openings: 1.9 },
-        { name: "Кухня", area: 15.6, openings: 3.1 },
-        { name: "Санузел", area: 7.4, openings: 0.8 }
-      ];
-
-      const tbody = document.getElementById('rooms-body');
-      tbody.innerHTML = '';
-
-      rooms.forEach(room => {
-        const cleanArea = Math.max(0, room.area - room.openings);
-        const volume = (cleanArea * globalHeight).toFixed(1);
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="py-3 px-2">${room.name}</td>
-          <td class="py-3 px-2 text-right">${cleanArea.toFixed(1)} м²</td>
-          <td class="py-3 px-2 text-right">${volume} м³</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    // =============== ДЕЙСТВИЯ ===============
-    function newProject() {
-      if (confirm('Создать новый проект?')) {
-        canvas.clear();
-        walls = []; doors = []; windows = []; rooms = [];
-        document.getElementById('rooms-body').innerHTML = '';
-        initCanvas();
+    // Number input during drawing
+    if (isDrawing && tool === 'wall') {
+      if (/^[0-9]$/.test(e.key)) {
+        lengthMode = true;
+        lengthInput += e.key;
+        e.preventDefault();
+        redraw();
+      } else if (e.key === 'Backspace' && lengthMode) {
+        lengthInput = lengthInput.slice(0, -1);
+        if (!lengthInput) lengthMode = false;
+        e.preventDefault();
+        redraw();
+      } else if (e.key === 'Enter' && lengthMode && lengthInput) {
+        // confirm length, place wall, continue chain
+        const targetLen = parseFloat(lengthInput);
+        if (!isNaN(targetLen) && targetLen > 0 && drawEnd && drawStart) {
+          const dx = drawEnd.x - drawStart.x;
+          const dy = drawEnd.y - drawStart.y;
+          const curLen = Math.hypot(dx, dy);
+          if (curLen > 0.1) {
+            const finalEnd = {
+              x: drawStart.x + (dx / curLen) * targetLen,
+              y: drawStart.y + (dy / curLen) * targetLen
+            };
+            addWall(drawStart, finalEnd);
+            computeRooms();
+            // chain: next wall from finalEnd
+            drawStart = { x: finalEnd.x, y: finalEnd.y };
+            drawEnd = { x: finalEnd.x, y: finalEnd.y };
+            chainMode = true;
+          }
+        }
+        lengthInput = ''; lengthMode = false;
+        e.preventDefault();
+        redraw();
       }
     }
 
-    function saveProject() {
-      const data = JSON.stringify(canvas.toJSON());
-      localStorage.setItem('rengaFullProject', data);
-      alert('✅ Проект сохранён!');
+    // Shortcuts
+    if (!e.ctrlKey && !e.metaKey) {
+      if (e.key === 'v' || e.key === 'V') setTool('select');
+      if (e.key === 'w' || e.key === 'W') setTool('wall');
+      if (e.key === 'o' || e.key === 'O') setTool('window');
+      if (e.key === 'd' || e.key === 'D') setTool('door');
+    }
+  });
+
+  window.addEventListener('keyup', e => {
+    if (e.key === 'Shift') {
+      shiftDown = false;
+      snapBadge.textContent = ctrlDown ? 'Привязка: 100 мм' : 'Привязка: 10 мм';
+    }
+    if (e.key === 'Control') {
+      ctrlDown = false;
+      snapBadge.textContent = shiftDown ? 'Привязка: 100 мм' : 'Привязка: 10 мм';
+    }
+  });
+
+  // ─── WALL OFFSET BUTTONS ─────────────────────────────────────────
+  document.querySelectorAll('.offset-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.offset-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      wallOffset = b.dataset.offset;
+    });
+  });
+
+  // ─── WALL / OPENING MANAGEMENT ───────────────────────────────────
+  function addWall(start, end) {
+    const thick = parseFloat(inpWallThick.value) || 200;
+    const height = parseFloat(inpWallHeight.value) || 2700;
+    // Apply offset: the drawn line is start→end; shift perpendicular based on offset mode
+    const angle = Math.atan2(end.y - start.y, end.x - start.x);
+    const s = applyWallOffset(start.x, start.y, angle, wallOffset, thick);
+    const e2 = applyWallOffset(end.x, end.y, angle, wallOffset, thick);
+    walls.push({
+      id: idWall++,
+      x1: s.x, y1: s.y,
+      x2: e2.x, y2: e2.y,
+      thickness: thick, height: height
+    });
+    redraw();
+  }
+
+  function addOpening(wall, t, width, height, type) {
+    const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+    let tc = Math.min(1 - width/2/wlen, Math.max(width/2/wlen, t));
+    openings.push({ id: idOpen++, wallId: wall.id, t: tc, width, height, type });
+    redraw();
+  }
+
+  function findClosestWall(wx, wy) {
+    let best = null, bestDist = 60;
+    for (const w of walls) {
+      const { t, dist } = segmentClosest(wx, wy, w);
+      if (dist < bestDist) { best = { wall: w, t }; bestDist = dist; }
+    }
+    return best;
+  }
+
+  function findClosestWallSel(wx, wy) {
+    let best = null, bestDist = 40;
+    for (const w of walls) {
+      const { dist } = segmentClosest(wx, wy, w);
+      if (dist < bestDist) { best = w; bestDist = dist; }
+    }
+    return best;
+  }
+
+  function findClosestOpening(wx, wy) {
+    for (const op of openings) {
+      const wall = walls.find(w => w.id === op.wallId);
+      if (!wall) continue;
+      const mx = wall.x1 + (wall.x2 - wall.x1) * op.t;
+      const my = wall.y1 + (wall.y2 - wall.y1) * op.t;
+      if (Math.hypot(wx - mx, wy - my) < 80) return op;
+    }
+    return null;
+  }
+
+  function segmentClosest(px, py, w) {
+    const ax = w.x2 - w.x1, ay = w.y2 - w.y1;
+    const len2 = ax*ax + ay*ay;
+    if (len2 === 0) return { t: 0, dist: Math.hypot(px-w.x1, py-w.y1) };
+    let t = ((px-w.x1)*ax + (py-w.y1)*ay) / len2;
+    t = Math.min(1, Math.max(0, t));
+    const projX = w.x1 + ax*t, projY = w.y1 + ay*t;
+    return { t, dist: Math.hypot(px-projX, py-projY) };
+  }
+
+  // ─── ROOM DETECTION ──────────────────────────────────────────────
+  function computeRooms() {
+    rooms = [];
+    if (walls.length < 2) { updateExpl(); return; }
+
+    const eps = 2;
+    // collect unique X, Y of wall endpoints
+    let xs = new Set(), ys = new Set();
+    for (const w of walls) {
+      xs.add(Math.round(w.x1)); xs.add(Math.round(w.x2));
+      ys.add(Math.round(w.y1)); ys.add(Math.round(w.y2));
+    }
+    const xList = [...xs].sort((a,b)=>a-b);
+    const yList = [...ys].sort((a,b)=>a-b);
+    if (xList.length < 2 || yList.length < 2) { updateExpl(); return; }
+
+    // build edge sets
+    const horizEdges = new Set();
+    const vertEdges = new Set();
+    for (const w of walls) {
+      if (Math.abs(w.y1 - w.y2) < eps) {
+        // horizontal
+        const yIdx = yList.findIndex(v => Math.abs(v - w.y1) < eps);
+        if (yIdx < 0) continue;
+        const xmin = Math.min(w.x1,w.x2), xmax = Math.max(w.x1,w.x2);
+        for (let i = 0; i < xList.length - 1; i++) {
+          if (xList[i] >= xmin - eps && xList[i+1] <= xmax + eps)
+            horizEdges.add(`${yIdx},${i}`);
+        }
+      } else if (Math.abs(w.x1 - w.x2) < eps) {
+        // vertical
+        const xIdx = xList.findIndex(v => Math.abs(v - w.x1) < eps);
+        if (xIdx < 0) continue;
+        const ymin = Math.min(w.y1,w.y2), ymax = Math.max(w.y1,w.y2);
+        for (let j = 0; j < yList.length - 1; j++) {
+          if (yList[j] >= ymin - eps && yList[j+1] <= ymax + eps)
+            vertEdges.add(`${xIdx},${j}`);
+        }
+      }
     }
 
-    function loadProject() {
-      const data = localStorage.getItem('rengaFullProject');
-      if (data) {
-        canvas.loadFromJSON(data, () => {
-          canvas.renderAll();
-          // Перезаполняем массивы
-          walls = canvas.getObjects().filter(o => o.data?.type === 'wall');
-          doors = canvas.getObjects().filter(o => o.data?.type === 'door');
-          windows = canvas.getObjects().filter(o => o.data?.type === 'window');
-          alert('✅ Проект загружен!');
-          calculateRooms();
+    const rows = yList.length - 1, cols = xList.length - 1;
+    const visited = Array.from({length:rows}, () => new Array(cols).fill(false));
+
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < cols; j++) {
+        if (visited[i][j]) continue;
+        const queue = [[i,j]];
+        const cells = [];
+        visited[i][j] = true;
+        while (queue.length) {
+          const [cy,cx] = queue.shift();
+          cells.push([cy,cx]);
+          if (cy>0 && !visited[cy-1][cx] && !horizEdges.has(`${cy},${cx}`)) { visited[cy-1][cx]=true; queue.push([cy-1,cx]); }
+          if (cy<rows-1 && !visited[cy+1][cx] && !horizEdges.has(`${cy+1},${cx}`)) { visited[cy+1][cx]=true; queue.push([cy+1,cx]); }
+          if (cx>0 && !visited[cy][cx-1] && !vertEdges.has(`${cx},${cy}`)) { visited[cy][cx-1]=true; queue.push([cy,cx-1]); }
+          if (cx<cols-1 && !visited[cy][cx+1] && !vertEdges.has(`${cx+1},${cy}`)) { visited[cy][cx+1]=true; queue.push([cy,cx+1]); }
+        }
+        if (!cells.length) continue;
+        const allX = cells.flatMap(([,cx]) => [xList[cx], xList[cx+1]]);
+        const allY = cells.flatMap(([cy]) => [yList[cy], yList[cy+1]]);
+        const minX = Math.min(...allX), maxX = Math.max(...allX);
+        const minY = Math.min(...allY), maxY = Math.max(...allY);
+        const area = (maxX - minX) * (maxY - minY) / 1e6;
+        if (area < 0.05) continue;
+
+        // ── STRICT: every exterior edge of this room group must be a wall ──
+        // For each cell on the outer boundary, check if the exposed edge has a wall
+        let fullyEnclosed = true;
+        for (const [cy, cx] of cells) {
+          // top edge of cell at cy: horizEdge key is `${cy},${cx}`
+          if (cy === 0 || !cells.some(([r2,c2]) => r2===cy-1 && c2===cx)) {
+            if (!horizEdges.has(`${cy},${cx}`)) { fullyEnclosed = false; break; }
+          }
+          // bottom
+          if (cy === rows-1 || !cells.some(([r2,c2]) => r2===cy+1 && c2===cx)) {
+            if (!horizEdges.has(`${cy+1},${cx}`)) { fullyEnclosed = false; break; }
+          }
+          // left
+          if (cx === 0 || !cells.some(([r2,c2]) => r2===cy && c2===cx-1)) {
+            if (!vertEdges.has(`${cx},${cy}`)) { fullyEnclosed = false; break; }
+          }
+          // right
+          if (cx === cols-1 || !cells.some(([r2,c2]) => r2===cy && c2===cx+1)) {
+            if (!vertEdges.has(`${cx+1},${cy}`)) { fullyEnclosed = false; break; }
+          }
+        }
+        if (!fullyEnclosed) continue;
+
+        // compute boundary walls
+        const boundWallIds = new Set();
+        for (const w of walls) {
+          const isHoriz = Math.abs(w.y1-w.y2) < eps;
+          const isVert = Math.abs(w.x1-w.x2) < eps;
+          if (isHoriz) {
+            const wy = w.y1;
+            if ((Math.abs(wy-minY) < eps || Math.abs(wy-maxY) < eps) &&
+                Math.max(w.x1,w.x2) > minX + eps && Math.min(w.x1,w.x2) < maxX - eps)
+              boundWallIds.add(w.id);
+          } else if (isVert) {
+            const wx = w.x1;
+            if ((Math.abs(wx-minX) < eps || Math.abs(wx-maxX) < eps) &&
+                Math.max(w.y1,w.y2) > minY + eps && Math.min(w.y1,w.y2) < maxY - eps)
+              boundWallIds.add(w.id);
+          }
+        }
+
+        // sum opening areas on boundary walls
+        let openArea = 0;
+        for (const op of openings) {
+          if (boundWallIds.has(op.wallId)) {
+            openArea += (op.width * op.height) / 1e6;
+          }
+        }
+
+        const wallH = walls.find(w => boundWallIds.has(w.id))?.height || parseFloat(inpWallHeight.value) || 2700;
+        const volume = Math.max(0, area * (wallH/1000) - openArea * (wallH/1000));
+
+        rooms.push({
+          polygon: [
+            {x:minX,y:minY},{x:maxX,y:minY},
+            {x:maxX,y:maxY},{x:minX,y:maxY}
+          ],
+          area, volume, openingsArea: openArea,
+          name: `Комната ${rooms.length+1}`
         });
       }
     }
+    updateExpl();
+    redraw();
+  }
 
-    function undo() { if (canvas) canvas.undo && canvas.undo(); }
-    function redo() { if (canvas) canvas.redo && canvas.redo(); }
+  function updateExpl() {
+    roomCount.textContent = rooms.length;
+    if (!rooms.length) {
+      explBody.innerHTML = '<tr class="empty-row"><td colspan="4">Нарисуйте стены и нажмите «Пересчитать»</td></tr>';
+      return;
+    }
+    explBody.innerHTML = rooms.map((r, i) => {
+      const color = ROOM_STROKES[i % ROOM_STROKES.length].replace('0.4', '0.8');
+      return `<tr>
+        <td><span class="room-dot" style="background:${color}"></span>${r.name}</td>
+        <td>${r.area.toFixed(2)}</td>
+        <td>${r.volume.toFixed(2)}</td>
+        <td>${r.openingsArea.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  }
 
-    // =============== ЗАПУСК ===============
-    window.onload = initCanvas;
-  </script>
+  // ─── BUTTONS ─────────────────────────────────────────────────────
+  document.getElementById('btnNew').addEventListener('click', () => {
+    if (!confirm('Создать новый проект? Текущий чертёж будет очищен.')) return;
+    walls = []; openings = []; rooms = []; idWall = 1; idOpen = 1;
+    clearSelection();
+    updateExpl();
+    redraw();
+  });
+
+  document.getElementById('btnRecalc').addEventListener('click', computeRooms);
+
+  document.getElementById('btnZoomIn').addEventListener('click', () => {
+    scale = Math.min(2, scale * 1.25);
+    redraw();
+  });
+  document.getElementById('btnZoomOut').addEventListener('click', () => {
+    scale = Math.max(0.03, scale / 1.25);
+    redraw();
+  });
+  document.getElementById('btnZoomReset').addEventListener('click', () => {
+    scale = 0.12; panX = 200; panY = 150;
+    redraw();
+  });
+
+  // input changes
+  [inpWallThick, inpWallHeight, inpOpenWidth, inpOpenHeight].forEach(inp => {
+    inp.addEventListener('change', computeRooms);
+    inp.addEventListener('focus', e => e.target.select());
+  });
+
+  // ─── INIT ─────────────────────────────────────────────────────────
+  setTool('select');
+  snapBadge.textContent = 'Привязка: 10 мм';
+  // set default offset to center
+  wallOffset = 'center';
+  document.querySelectorAll('.offset-btn').forEach(b => b.classList.remove('active'));
+  const centerBtn = document.querySelector('.offset-btn[data-offset="center"]');
+  if (centerBtn) centerBtn.classList.add('active');
+  redraw();
+
+})();
+</script>
 </body>
 </html>
