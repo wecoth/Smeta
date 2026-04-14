@@ -788,6 +788,7 @@
   let historyPast = [];
   let historyFuture = [];
   let isRestoringHistory = false;
+  let wallHatchPattern = null;
 
   // colors for rooms
   const ROOM_COLORS = [
@@ -942,6 +943,117 @@
       { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 },
       { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 }
     ];
+  }
+
+  function getWallJointPoint(wall, endpoint) {
+    if (endpoint === 'start') {
+      return { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 };
+    }
+    return { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 };
+  }
+
+  function getWallJointKey(point) {
+    return `${Math.round(point.x)},${Math.round(point.y)}`;
+  }
+
+  function buildWallJointMap() {
+    const joints = new Map();
+    for (const wall of walls) {
+      for (const endpoint of ['start', 'end']) {
+        const point = getWallJointPoint(wall, endpoint);
+        const other = getWallJointPoint(wall, endpoint === 'start' ? 'end' : 'start');
+        const dx = other.x - point.x;
+        const dy = other.y - point.y;
+        const direction = Math.abs(dx) >= Math.abs(dy)
+          ? { x: Math.sign(dx) || 0, y: 0 }
+          : { x: 0, y: Math.sign(dy) || 0 };
+        const key = getWallJointKey(point);
+        if (!joints.has(key)) joints.set(key, []);
+        joints.get(key).push({ wall, endpoint, point, other, direction });
+      }
+    }
+    return joints;
+  }
+
+  function getWallJointItemsForEndpoint(jointMap, wall, endpoint) {
+    return jointMap.get(getWallJointKey(getWallJointPoint(wall, endpoint))) || [];
+  }
+
+  function getWallSurfaceStyle(isSelected) {
+    return {
+      fill: isSelected ? '#dbeafe' : '#eceef2',
+      stroke: isSelected ? '#2563eb' : '#4a5568'
+    };
+  }
+
+  function getWallHatchPattern() {
+    if (wallHatchPattern) return wallHatchPattern;
+    const patternCanvas = document.createElement('canvas');
+    patternCanvas.width = 12;
+    patternCanvas.height = 12;
+    const patternCtx = patternCanvas.getContext('2d');
+    patternCtx.clearRect(0, 0, patternCanvas.width, patternCanvas.height);
+    patternCtx.strokeStyle = 'rgba(71,85,105,0.22)';
+    patternCtx.lineWidth = 1;
+    patternCtx.beginPath();
+    patternCtx.moveTo(-2, 12);
+    patternCtx.lineTo(12, -2);
+    patternCtx.moveTo(4, 12);
+    patternCtx.lineTo(12, 4);
+    patternCtx.stroke();
+    wallHatchPattern = ctx.createPattern(patternCanvas, 'repeat');
+    return wallHatchPattern;
+  }
+
+  function fillWallShape(pathBuilder, fillColor) {
+    ctx.save();
+    pathBuilder();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    const hatch = getWallHatchPattern();
+    if (hatch) {
+      pathBuilder();
+      ctx.fillStyle = hatch;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function getWallScreenGeometry(wall) {
+    const p1 = toScreen(wall.x1, wall.y1);
+    const p2 = toScreen(wall.x2, wall.y2);
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const halfT = (wall.thickness / 2) * scale;
+    const dx = -Math.sin(angle) * halfT;
+    const dy = Math.cos(angle) * halfT;
+    return {
+      p1,
+      p2,
+      angle,
+      halfT,
+      a: { x: p1.x + dx, y: p1.y + dy },
+      b: { x: p2.x + dx, y: p2.y + dy },
+      c: { x: p2.x - dx, y: p2.y - dy },
+      d: { x: p1.x - dx, y: p1.y - dy }
+    };
+  }
+
+  function getWallInteriorSide(wall, fallback = 1) {
+    const mid = {
+      x: (wall.x1 + wall.x2) / 2,
+      y: (wall.y1 + wall.y2) / 2
+    };
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const normal = { x: -Math.sin(angle), y: Math.cos(angle) };
+    let bestDot = null;
+    for (const room of rooms) {
+      if (!room.boundarySegments.some(seg => seg.wall && seg.wall.id === wall.id)) continue;
+      const dot = (room.center.x - mid.x) * normal.x + (room.center.y - mid.y) * normal.y;
+      if (Math.abs(dot) < 1) continue;
+      if (bestDot === null || Math.abs(dot) > Math.abs(bestDot)) bestDot = dot;
+    }
+    if (bestDot === null) return fallback;
+    return bestDot >= 0 ? 1 : -1;
   }
 
   function getOpeningScreenBounds(opening) {
@@ -1349,60 +1461,67 @@
   }
 
   function drawWalls() {
+    const jointMap = buildWallJointMap();
     for (const w of walls) {
-      const p1 = toScreen(w.x1, w.y1);
-      const p2 = toScreen(w.x2, w.y2);
-      const angle = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
-      const halfT = (w.thickness / 2) * scale;
-      const dx = -Math.sin(angle) * halfT;
-      const dy = Math.cos(angle) * halfT;
-
+      const geometry = getWallScreenGeometry(w);
       const isSelected = isItemSelected('wall', w.id);
+      const style = getWallSurfaceStyle(isSelected);
+      const startJoined = getWallJointItemsForEndpoint(jointMap, w, 'start').length > 1;
+      const endJoined = getWallJointItemsForEndpoint(jointMap, w, 'end').length > 1;
+
+      function traceWall() {
+        ctx.beginPath();
+        ctx.moveTo(geometry.a.x, geometry.a.y);
+        ctx.lineTo(geometry.b.x, geometry.b.y);
+        ctx.lineTo(geometry.c.x, geometry.c.y);
+        ctx.lineTo(geometry.d.x, geometry.d.y);
+        ctx.closePath();
+      }
 
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(p1.x + dx, p1.y + dy);
-      ctx.lineTo(p2.x + dx, p2.y + dy);
-      ctx.lineTo(p2.x - dx, p2.y - dy);
-      ctx.lineTo(p1.x - dx, p1.y - dy);
-      ctx.closePath();
-      ctx.fillStyle = isSelected ? '#dbeafe' : '#eceef2';
-      ctx.fill();
-      ctx.strokeStyle = isSelected ? '#2563eb' : '#4a5568';
+      fillWallShape(traceWall, style.fill);
+      ctx.strokeStyle = style.stroke;
       ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(geometry.a.x, geometry.a.y);
+      ctx.lineTo(geometry.b.x, geometry.b.y);
+      ctx.moveTo(geometry.d.x, geometry.d.y);
+      ctx.lineTo(geometry.c.x, geometry.c.y);
+      if (!endJoined) {
+        ctx.moveTo(geometry.b.x, geometry.b.y);
+        ctx.lineTo(geometry.c.x, geometry.c.y);
+      }
+      if (!startJoined) {
+        ctx.moveTo(geometry.d.x, geometry.d.y);
+        ctx.lineTo(geometry.a.x, geometry.a.y);
+      }
       ctx.stroke();
 
       // wall length label
       if (scale > 0.08) {
         const len = Math.hypot(w.x2 - w.x1, w.y2 - w.y1);
-        const mx = (p1.x + p2.x) / 2;
-        const my = (p1.y + p2.y) / 2;
-        const perpX = -Math.sin(angle) * (halfT + 8);
-        const perpY = Math.cos(angle) * (halfT + 8);
-        ctx.font = '500 10px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#6b7280';
-        ctx.fillText(Math.round(len) + ' мм', mx + perpX, my + perpY);
+        const mx = (geometry.p1.x + geometry.p2.x) / 2;
+        const my = (geometry.p1.y + geometry.p2.y) / 2;
+        const side = getWallInteriorSide(w);
+        const offset = geometry.halfT + 18;
+        drawAlignedTextBox(
+          `${Math.round(len)} мм`,
+          {
+            x: mx + (-Math.sin(geometry.angle) * offset * side),
+            y: my + (Math.cos(geometry.angle) * offset * side)
+          },
+          geometry.angle,
+          {
+            textColor: isSelected ? '#1d4ed8' : '#6b7280'
+          }
+        );
       }
       ctx.restore();
     }
   }
 
   function drawWallJoints() {
-    const joints = new Map();
-    for (const wall of walls) {
-      const points = [
-        { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 },
-        { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 }
-      ];
-      for (const point of points) {
-        const key = `${Math.round(point.x)},${Math.round(point.y)}`;
-        if (!joints.has(key)) joints.set(key, []);
-        joints.get(key).push({ wall, point });
-      }
-    }
-
+    const joints = buildWallJointMap();
     for (const items of joints.values()) {
       if (items.length < 2) continue;
       const point = items[0].point;
@@ -1411,17 +1530,41 @@
       const size = Math.max(2, maxThickness * scale);
       const half = size / 2;
       const selected = items.some(item => isItemSelected('wall', item.wall.id));
+      const style = getWallSurfaceStyle(selected);
+
+      const hasEast = items.some(item => item.direction.x > 0);
+      const hasWest = items.some(item => item.direction.x < 0);
+      const hasSouth = items.some(item => item.direction.y > 0);
+      const hasNorth = items.some(item => item.direction.y < 0);
+      const needsCornerPatch = (hasEast || hasWest) && (hasNorth || hasSouth);
+      if (!needsCornerPatch) continue;
+
+      fillWallShape(() => {
+        ctx.beginPath();
+        ctx.rect(screen.x - half, screen.y - half, size, size);
+      }, style.fill);
 
       ctx.save();
-      ctx.fillStyle = selected ? '#dbeafe' : '#eceef2';
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = selected ? 1.5 : 1;
       ctx.beginPath();
-      ctx.rect(screen.x - half, screen.y - half, size, size);
-      ctx.fill();
-      if (selected) {
-        ctx.strokeStyle = '#2563eb';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
+      if (!hasNorth) {
+        ctx.moveTo(screen.x - half, screen.y - half);
+        ctx.lineTo(screen.x + half, screen.y - half);
       }
+      if (!hasSouth) {
+        ctx.moveTo(screen.x - half, screen.y + half);
+        ctx.lineTo(screen.x + half, screen.y + half);
+      }
+      if (!hasWest) {
+        ctx.moveTo(screen.x - half, screen.y - half);
+        ctx.lineTo(screen.x - half, screen.y + half);
+      }
+      if (!hasEast) {
+        ctx.moveTo(screen.x + half, screen.y - half);
+        ctx.lineTo(screen.x + half, screen.y + half);
+      }
+      ctx.stroke();
       ctx.restore();
     }
   }
@@ -1521,11 +1664,37 @@
     ctx.restore();
   }
 
+  function drawAlignedTextBox(text, position, angle, options = {}) {
+    let textAngle = angle;
+    if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) textAngle += Math.PI;
+    const font = options.font || '600 10px Inter, sans-serif';
+    const textColor = options.textColor || '#0f172a';
+    const background = options.background || 'rgba(255,255,255,0.95)';
+
+    ctx.save();
+    ctx.translate(position.x, position.y);
+    ctx.rotate(textAngle);
+    ctx.font = font;
+    const textWidth = ctx.measureText(text).width;
+    const padX = 6;
+    const padY = 3;
+    const boxWidth = textWidth + padX * 2;
+    const boxHeight = 16;
+    ctx.fillStyle = background;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 5);
+    else ctx.rect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
+    ctx.fill();
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
   function drawAlignedDimensionLabel(text, start, end, angle, normal, color) {
     const midX = (start.x + end.x) / 2;
     const midY = (start.y + end.y) / 2;
-    let textAngle = angle;
-    if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) textAngle += Math.PI;
 
     ctx.save();
     ctx.strokeStyle = color;
@@ -1534,25 +1703,9 @@
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
     ctx.stroke();
-
-    ctx.translate(midX, midY);
-    ctx.rotate(textAngle);
-    ctx.font = '600 10px Inter, sans-serif';
-    const textWidth = ctx.measureText(text).width;
-    const padX = 6;
-    const padY = 3;
-    const boxWidth = textWidth + padX * 2;
-    const boxHeight = 16;
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight, 5);
-    else ctx.rect(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
-    ctx.fill();
-    ctx.fillStyle = '#0f172a';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, 0, 0);
     ctx.restore();
+
+    drawAlignedTextBox(text, { x: midX, y: midY }, angle);
   }
 
   function drawOpeningDimensions(op, wall, angle, openingSegment) {
@@ -1564,7 +1717,7 @@
       x: -Math.sin(angle),
       y: Math.cos(angle)
     };
-    const side = op.side || 1;
+    const side = getWallInteriorSide(wall, op.side || 1);
     const offset = (wall.thickness / 2) * scale + 18;
 
     function offsetPoint(point) {
@@ -1964,6 +2117,7 @@
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
     mouseScreen = { x: pos.x, y: pos.y };
+    if (tool !== 'select' && selectedItems.length && !shiftDown) clearSelection();
     if (tool === 'wall') {
       if (!isDrawing) {
         const snapped = snap(world.x, world.y);
@@ -1992,6 +2146,7 @@
         selectClickCandidate = hit;
         clearSelectionBox();
       } else {
+        if (!shiftDown) clearSelection();
         selectClickCandidate = null;
         selectBoxStart = { x: pos.x, y: pos.y };
         selectBoxCurrent = { x: pos.x, y: pos.y };
