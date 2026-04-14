@@ -646,7 +646,7 @@
           </div>
         </div>
         <div class="hint-box">
-          <b>Клик:</b> задаёт старт и финиш стены. <b>Esc</b> — завершить цепочку. <b>Ввод длины:</b> цифры → Enter. <b>90°:</b> мягко магнитится к осям X/Y.
+          <b>Клик:</b> задаёт старт и финиш стены. Можно цепляться к <b>углам</b>, <b>кромкам</b> и <b>оси</b> существующей стены. <b>Esc</b> — завершить цепочку. <b>Ввод длины:</b> цифры → Enter. <b>90°:</b> мягко магнитится к осям X/Y.
         </div>
       </div>
 
@@ -821,10 +821,13 @@
     previewCenterLine: 'rgba(107,114,128,0.35)',
     selectionFill: 'rgba(75,85,99,0.10)',
     selectionStroke: 'rgba(75,85,99,0.78)',
+    corner: '#111827',
     endpoint: '#374151',
     midpoint: '#6b7280',
     intersection: '#111827',
     perpendicular: '#9ca3af',
+    wallFace: '#4b5563',
+    wallAxis: '#9ca3af',
     guidePrimary: '#5f6771',
     guideSecondary: '#9aa1a9',
     handleFill: '#f8fafc',
@@ -894,8 +897,10 @@
           screenPoint,
           {
             includeEndpoint: !forceNoEndpoint,
+            includeCorner: true,
             includeMidpoint: !forceNoEndpoint,
             includeIntersection: !forceNoEndpoint,
+            includeWallPoint: true,
             includePerpendicular: !!options.includePerpendicular,
             startPoint: options.startPoint || null
           }
@@ -1207,32 +1212,65 @@
     return walls.some(other => other.id !== wall.id && isPointInsideWallSurface(point, other));
   }
 
+  function isPointInsideAnyWall(point) {
+    return walls.some(wall => isPointInsideWallSurface(point, wall));
+  }
+
   function getSnapTypePriority(type) {
     return {
-      endpoint: 0,
-      intersection: 1,
-      midpoint: 2,
-      perpendicular: 3
+      corner: 0,
+      endpoint: 1,
+      intersection: 2,
+      midpoint: 3,
+      wallFace: 4,
+      wallAxis: 5,
+      perpendicular: 6
     }[type] ?? 9;
   }
 
   function getSnapLabel(type) {
     return {
-      endpoint: 'Угол',
+      corner: 'Угол',
+      endpoint: 'Точка стены',
       midpoint: 'Середина',
       intersection: 'Пересечение',
-      perpendicular: 'Перпендикуляр'
+      perpendicular: 'Перпендикуляр',
+      wallFace: 'Край стены',
+      wallAxis: 'Ось стены'
     }[type] || '';
+  }
+
+  function getWallCornerPoints(wall) {
+    const geometry = getWallWorldGeometry(wall);
+    return [geometry.a, geometry.b, geometry.c, geometry.d];
+  }
+
+  function getWallSnapSegments(wall) {
+    const geometry = getWallWorldGeometry(wall);
+    return [
+      {
+        type: 'wallAxis',
+        segment: { x1: wall.x1, y1: wall.y1, x2: wall.x2, y2: wall.y2 }
+      },
+      {
+        type: 'wallFace',
+        segment: { x1: geometry.a.x, y1: geometry.a.y, x2: geometry.b.x, y2: geometry.b.y }
+      },
+      {
+        type: 'wallFace',
+        segment: { x1: geometry.d.x, y1: geometry.d.y, x2: geometry.c.x, y2: geometry.c.y }
+      }
+    ];
   }
 
   function findObjectSnapCandidate(worldPoint, screenPoint, options = {}) {
     const tolerance = options.tolerance ?? 16;
     const bestByKey = new Map();
 
-    function register(type, point, extra = {}) {
+    function register(type, point, extra = {}, distanceLimit = tolerance) {
       const screen = toScreen(point.x, point.y);
       const distance = Math.hypot(screenPoint.x - screen.x, screenPoint.y - screen.y);
-      if (distance > tolerance) return;
+      if (distance > distanceLimit) return;
       const key = `${type}:${Math.round(point.x)},${Math.round(point.y)}`;
       const candidate = {
         type,
@@ -1250,6 +1288,14 @@
       for (const wall of walls) {
         for (const point of getWallContourEndpoints(wall)) {
           register('endpoint', point, { wallId: wall.id });
+        }
+      }
+    }
+
+    if (options.includeCorner) {
+      for (const wall of walls) {
+        for (const point of getWallCornerPoints(wall)) {
+          register('corner', point, { wallId: wall.id });
         }
       }
     }
@@ -1287,6 +1333,26 @@
       }
     }
 
+    if (options.includeWallPoint) {
+      const wallPointTolerance = options.wallPointTolerance ?? Math.max(tolerance, 24);
+      for (const wall of walls) {
+        const wallAngle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+        for (const entry of getWallSnapSegments(wall)) {
+          const projection = projectPointOntoSegment(worldPoint, entry.segment);
+          const canSnapFromWallBody = isPointInsideWallSurface(worldPoint, wall, 0.75);
+          register(
+            entry.type,
+            projection,
+            {
+              wallId: wall.id,
+              wallAngle
+            },
+            canSnapFromWallBody ? Infinity : wallPointTolerance
+          );
+        }
+      }
+    }
+
     const candidates = [...bestByKey.values()];
     candidates.sort((a, b) => {
       if (Math.abs(a.distance - b.distance) > 0.5) return a.distance - b.distance;
@@ -1305,8 +1371,10 @@
       screenPoint,
       {
         includeEndpoint: true,
+        includeCorner: true,
         includeMidpoint: true,
         includeIntersection: true,
+        includeWallPoint: true,
         includePerpendicular: isDrawing && !!drawStart,
         startPoint: drawStart
       }
@@ -1578,14 +1646,51 @@
     ctx.restore();
   }
 
+  function drawWallCornerHotspots() {
+    if (tool !== 'wall' || !currentObjectSnap) return;
+    const wallIds = currentObjectSnap.wallIds?.length
+      ? currentObjectSnap.wallIds
+      : currentObjectSnap.wallId
+        ? [currentObjectSnap.wallId]
+        : [];
+    if (!wallIds.length) return;
+
+    const uniquePoints = new Map();
+    for (const wallId of wallIds) {
+      const wall = walls.find(item => item.id === wallId);
+      if (!wall) continue;
+      for (const point of getWallCornerPoints(wall)) {
+        const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+        if (!uniquePoints.has(key)) uniquePoints.set(key, point);
+      }
+    }
+
+    ctx.save();
+    for (const point of uniquePoints.values()) {
+      const screen = toScreen(point.x, point.y);
+      const isActive = Math.hypot(point.x - currentObjectSnap.x, point.y - currentObjectSnap.y) < 1;
+      ctx.beginPath();
+      ctx.arc(screen.x, screen.y, isActive ? 5 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = isActive ? DRAW_COLORS.corner : 'rgba(17,24,39,0.35)';
+      ctx.lineWidth = isActive ? 2 : 1.5;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawCurrentObjectSnap() {
     if (!currentObjectSnap || tool !== 'wall') return;
     const point = toScreen(currentObjectSnap.x, currentObjectSnap.y);
     const color = {
+      corner: DRAW_COLORS.corner,
       endpoint: DRAW_COLORS.endpoint,
       midpoint: DRAW_COLORS.midpoint,
       intersection: DRAW_COLORS.intersection,
-      perpendicular: DRAW_COLORS.perpendicular
+      perpendicular: DRAW_COLORS.perpendicular,
+      wallFace: DRAW_COLORS.wallFace,
+      wallAxis: DRAW_COLORS.wallAxis
     }[currentObjectSnap.type] || DRAW_COLORS.previewStroke;
 
     ctx.save();
@@ -1593,11 +1698,18 @@
     ctx.fillStyle = '#ffffff';
     ctx.lineWidth = 2;
 
-    if (currentObjectSnap.type === 'endpoint') {
+    if (currentObjectSnap.type === 'corner' || currentObjectSnap.type === 'endpoint') {
       ctx.beginPath();
-      ctx.rect(point.x - 5, point.y - 5, 10, 10);
+      ctx.rect(point.x - 4.5, point.y - 4.5, 9, 9);
       ctx.fill();
       ctx.stroke();
+      if (currentObjectSnap.type === 'corner') {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(17,24,39,0.18)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
     } else if (currentObjectSnap.type === 'midpoint') {
       ctx.beginPath();
       ctx.moveTo(point.x, point.y - 6);
@@ -1630,6 +1742,22 @@
       ctx.lineTo(point.x + ux * 10 + vx * 10, point.y + uy * 10 + vy * 10);
       ctx.lineTo(point.x + vx * 10, point.y + vy * 10);
       ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (currentObjectSnap.type === 'wallFace' || currentObjectSnap.type === 'wallAxis') {
+      const wallAngle = currentObjectSnap.wallAngle || 0;
+      const ux = Math.cos(wallAngle);
+      const uy = Math.sin(wallAngle);
+      const nx = -uy;
+      const ny = ux;
+      ctx.beginPath();
+      ctx.moveTo(point.x - ux * 7, point.y - uy * 7);
+      ctx.lineTo(point.x + ux * 7, point.y + uy * 7);
+      ctx.moveTo(point.x - nx * 4, point.y - ny * 4);
+      ctx.lineTo(point.x + nx * 4, point.y + ny * 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, currentObjectSnap.type === 'wallFace' ? 4.5 : 3.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
@@ -2105,6 +2233,7 @@
     if (hoverOpening) drawHoverOpening();
     if (isDrawing && drawStart && drawEnd) drawTempWall();
     if (tool === 'wall' && currentGuideLine) drawCurrentGuideLine();
+    if (tool === 'wall' && currentObjectSnap) drawWallCornerHotspots();
     if (tool === 'wall' && currentObjectSnap) drawCurrentObjectSnap();
     drawSelectionBox();
     drawCursorGhost();
@@ -2262,6 +2391,32 @@
     }
   }
 
+  function getJointBoundaryEdges(left, top, right, bottom) {
+    const probe = Math.max(0.75, Math.min(2, Math.min(right - left, bottom - top) / 3));
+    const edges = [
+      { x1: left, y1: top, x2: right, y2: top, normal: { x: 0, y: -1 } },
+      { x1: right, y1: top, x2: right, y2: bottom, normal: { x: 1, y: 0 } },
+      { x1: left, y1: bottom, x2: right, y2: bottom, normal: { x: 0, y: 1 } },
+      { x1: left, y1: top, x2: left, y2: bottom, normal: { x: -1, y: 0 } }
+    ];
+
+    return edges.filter(edge => {
+      const mid = {
+        x: (edge.x1 + edge.x2) / 2,
+        y: (edge.y1 + edge.y2) / 2
+      };
+      const inside = {
+        x: mid.x - edge.normal.x * probe,
+        y: mid.y - edge.normal.y * probe
+      };
+      const outside = {
+        x: mid.x + edge.normal.x * probe,
+        y: mid.y + edge.normal.y * probe
+      };
+      return isPointInsideAnyWall(inside) && !isPointInsideAnyWall(outside);
+    });
+  }
+
   function drawWallJoints() {
     const joints = buildWallJointMap();
     for (const items of joints.values()) {
@@ -2303,6 +2458,22 @@
             ctx.beginPath();
             ctx.rect(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
           }, style.fill);
+
+          const boundaryEdges = getJointBoundaryEdges(left, top, right, bottom);
+          if (!boundaryEdges.length) continue;
+
+          ctx.save();
+          ctx.strokeStyle = style.stroke;
+          ctx.lineWidth = selected ? 1.5 : 1;
+          ctx.beginPath();
+          for (const edge of boundaryEdges) {
+            const p1 = toScreen(edge.x1, edge.y1);
+            const p2 = toScreen(edge.x2, edge.y2);
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+          }
+          ctx.stroke();
+          ctx.restore();
         }
       }
     }
@@ -2639,10 +2810,13 @@
     const snapType = drawEnd && drawEnd.snapType;
     const endSnap = !!snapType || (drawEnd && drawEnd.snappedToEndpoint);
     const snapColor = {
+      corner: DRAW_COLORS.corner,
       endpoint: DRAW_COLORS.endpoint,
       midpoint: DRAW_COLORS.midpoint,
       intersection: DRAW_COLORS.intersection,
-      perpendicular: DRAW_COLORS.perpendicular
+      perpendicular: DRAW_COLORS.perpendicular,
+      wallFace: DRAW_COLORS.wallFace,
+      wallAxis: DRAW_COLORS.wallAxis
     }[snapType] || (endSnap ? DRAW_COLORS.endpoint : DRAW_COLORS.previewStroke);
     ctx.beginPath();
     ctx.arc(ps2.x, ps2.y, endSnap ? 8 : 4, 0, Math.PI*2);
@@ -2654,12 +2828,18 @@
     if (endSnap) {
       ctx.beginPath();
       ctx.arc(ps2.x, ps2.y, 14, 0, Math.PI*2);
-      ctx.strokeStyle = snapType === 'endpoint'
+      ctx.strokeStyle = snapType === 'corner'
+        ? 'rgba(17,24,39,0.32)'
+        : snapType === 'endpoint'
         ? 'rgba(55,65,81,0.35)'
         : snapType === 'midpoint'
           ? 'rgba(107,114,128,0.3)'
           : snapType === 'intersection'
             ? 'rgba(17,24,39,0.3)'
+            : snapType === 'wallFace'
+              ? 'rgba(75,85,99,0.28)'
+              : snapType === 'wallAxis'
+                ? 'rgba(156,163,175,0.35)'
             : 'rgba(156,163,175,0.35)';
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -2809,6 +2989,15 @@
     syncDoorControlButtons();
   }
 
+  function commitSelectedWallLengthInput(inputEl) {
+    if (!inputEl || !inputEl.matches('[data-wall-length-input]')) return false;
+    const wall = getSelectedWall();
+    if (!wall) return false;
+    const changed = setWallLength(wall, inputEl.value, wallLengthAnchor, { recordHistory: true });
+    inputEl.value = Math.round(getWallLength(wall));
+    return changed;
+  }
+
   editContent.addEventListener('click', e => {
     if (selectedItems.length !== 1) return;
 
@@ -2835,17 +3024,13 @@
     if (!e.target.matches('[data-wall-length-input]')) return;
     if (e.key === 'Enter') {
       e.preventDefault();
-      e.target.blur();
+      commitSelectedWallLengthInput(e.target);
     }
   });
 
   editContent.addEventListener('change', e => {
     if (!e.target.matches('[data-wall-length-input]')) return;
-    const wall = getSelectedWall();
-    if (!wall) return;
-    const changed = setWallLength(wall, e.target.value, wallLengthAnchor, { recordHistory: true });
-    e.target.value = Math.round(getWallLength(wall));
-    if (!changed) updateEditPanel();
+    commitSelectedWallLengthInput(e.target);
   });
 
   function pickObjectAtWorldPoint(wx, wy, append = false) {
@@ -3089,7 +3274,7 @@
     if (tool === 'select' && selectBoxStart) {
       const box = normalizedSelectionBox();
       if (box && hasDraggedSelectionBox()) selectObjectsInRect(box, shiftDown);
-      else if (!shiftDown) clearSelection();
+      else clearSelection();
       clearSelectionPointerState();
       redraw();
       return;
