@@ -26,7 +26,7 @@
     --accent-bg: #eff6ff;
     --btn-bg: #f4f6fa;
     --btn-border: #dde1e8;
-    --btn-hover-bg: #eaedف5;
+    --btn-hover-bg: #eaedf5;
     --tool-active-bg: #2563eb;
     --tool-active-color: #fff;
     --section-title: #0f172a;
@@ -102,6 +102,17 @@
   }
   .tb-btn:hover { background: #eaeff8; border-color: #b0bcd4; }
   .tb-btn:active { background: #dde5f5; }
+  .tb-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+    background: var(--btn-bg);
+    border-color: var(--btn-border);
+  }
+  .tb-btn.icon-btn {
+    width: 30px;
+    justify-content: center;
+    padding: 0;
+  }
 
   .snap-badge {
     margin-left: auto;
@@ -453,6 +464,39 @@
   }
   .offset-btn:hover { background: var(--accent-bg); border-color: #93c5fd; color: var(--accent); }
   .offset-btn.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .choice-btn {
+    padding: 7px 8px;
+    border: 1.5px solid var(--btn-border);
+    background: var(--btn-bg);
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: inherit;
+  }
+  .choice-btn:hover {
+    background: var(--accent-bg);
+    border-color: #93c5fd;
+    color: var(--accent);
+  }
+  .choice-btn.active {
+    background: var(--accent-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .choice-btn.compact {
+    padding: 6px 7px;
+    font-size: 10.5px;
+  }
 </style>
 </head>
 <body>
@@ -467,6 +511,12 @@
   <button class="tb-btn" id="btnNew">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     Новый
+  </button>
+  <button class="tb-btn icon-btn" id="btnUndo" title="Отменить (Ctrl+Z)" disabled>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 14 4 9l5-5"/><path d="M20 20a8 8 0 0 0-8-8H4"/></svg>
+  </button>
+  <button class="tb-btn icon-btn" id="btnRedo" title="Вернуть (Ctrl+Y)" disabled>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 14 5-5-5-5"/><path d="M4 20a8 8 0 0 1 8-8h8"/></svg>
   </button>
   <div class="topbar-sep"></div>
   <button class="tb-btn" id="btnRecalc">
@@ -594,7 +644,7 @@
       <!-- DOOR PARAMS -->
       <div class="rp-section tool-panel" id="doorParams">
         <div class="rp-section-title">Параметры двери</div>
-        <div class="section-note">Дверь наводится так же, как окно: сначала прозрачный предпросмотр и размеры, потом установка.</div>
+        <div class="section-note">Дверь наводится так же, как окно: сначала прозрачный предпросмотр и размеры, потом установка. Направление открывания меняется сразу в превью.</div>
         <div class="param-group">
           <div class="param-label">Ширина двери <span class="param-unit">мм</span></div>
           <div class="param-input-wrap">
@@ -609,8 +659,22 @@
             <span class="param-input-unit">мм</span>
           </div>
         </div>
+        <div class="param-group">
+          <div class="param-label">Петля двери</div>
+          <div class="choice-grid" id="doorHingeButtons">
+            <button class="choice-btn active" type="button" data-default-door-hinge="start">У начала</button>
+            <button class="choice-btn" type="button" data-default-door-hinge="end">У конца</button>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Сторона дуги</div>
+          <div class="choice-grid" id="doorSwingButtons">
+            <button class="choice-btn active" type="button" data-default-door-swing="1">Слева</button>
+            <button class="choice-btn" type="button" data-default-door-swing="-1">Справа</button>
+          </div>
+        </div>
         <div class="hint-box">
-          Сначала смотрите предпросмотр на стене, потом фиксируйте дверь кликом
+          Возле курсора показывается силуэт двери, а на стене виден точный превью-размер и дуга открывания
         </div>
       </div>
 
@@ -658,8 +722,8 @@
   'use strict';
 
   // ─── STATE ────────────────────────────────────────────────────────
-  let walls = [];     // {id, x1,y1,x2,y2, thickness, height}
-  let openings = [];  // {id, wallId, t, width, height, type}
+  let walls = [];     // {id, x1,y1,x2,y2, cx1,cy1,cx2,cy2, thickness, height}
+  let openings = [];  // {id, wallId, t, width, height, type, hinge?, swing?}
   let rooms = [];     // {cells, boundarySegments, area, wallArea, perimeter, openingsArea, center, name}
   let idWall = 1, idOpen = 1;
 
@@ -675,6 +739,8 @@
   // Offset is perpendicular to draw direction
   let wallOffset = 'center';
   let hoverOpening = null;
+  let defaultDoorHinge = 'start';
+  let defaultDoorSwing = 1;
 
   let selectedId = null;  // { type: 'wall'|'opening', id }
 
@@ -687,6 +753,13 @@
   let ctrlDown = false;
   let isPanning = false;
   let panStartX, panStartY, panStartOffX, panStartOffY;
+  let mouseScreen = null;
+  let selectBoxStart = null;
+  let selectBoxCurrent = null;
+
+  let historyPast = [];
+  let historyFuture = [];
+  let isRestoringHistory = false;
 
   // colors for rooms
   const ROOM_COLORS = [
@@ -715,6 +788,8 @@
   const roomCount = document.getElementById('roomCount');
   const editPanel = document.getElementById('editPanel');
   const editContent = document.getElementById('editContent');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRedo = document.getElementById('btnRedo');
 
   const inpWallThick = document.getElementById('inpWallThick');
   const inpWallHeight = document.getElementById('inpWallHeight');
@@ -786,6 +861,90 @@
     lblLen.style.display = 'none';
   }
 
+  function clearSelectionBox() {
+    selectBoxStart = null;
+    selectBoxCurrent = null;
+  }
+
+  function snapshotState() {
+    return {
+      walls: walls.map(w => ({ ...w })),
+      openings: openings.map(o => ({ ...o })),
+      idWall,
+      idOpen
+    };
+  }
+
+  function updateHistoryButtons() {
+    btnUndo.disabled = historyPast.length <= 1;
+    btnRedo.disabled = historyFuture.length === 0;
+  }
+
+  function recordHistory() {
+    if (isRestoringHistory) return;
+    const snapshot = snapshotState();
+    const key = JSON.stringify(snapshot);
+    const last = historyPast[historyPast.length - 1];
+    if (last && last.key === key) {
+      updateHistoryButtons();
+      return;
+    }
+    historyPast.push({ key, snapshot });
+    if (historyPast.length > 120) historyPast.shift();
+    historyFuture = [];
+    updateHistoryButtons();
+  }
+
+  function restoreHistorySnapshot(snapshot) {
+    walls = snapshot.walls.map(w => ({ ...w }));
+    openings = snapshot.openings.map(o => ({ ...o }));
+    idWall = snapshot.idWall;
+    idOpen = snapshot.idOpen;
+    hoverOpening = null;
+    mouseScreen = null;
+    resetDrawingState();
+    clearSelectionBox();
+    selectedId = null;
+    editPanel.style.display = 'none';
+    computeRooms();
+    updateHistoryButtons();
+  }
+
+  function undoHistory() {
+    if (historyPast.length <= 1) return;
+    const current = historyPast.pop();
+    historyFuture.push(current);
+    isRestoringHistory = true;
+    restoreHistorySnapshot(historyPast[historyPast.length - 1].snapshot);
+    isRestoringHistory = false;
+    updateHistoryButtons();
+  }
+
+  function redoHistory() {
+    if (!historyFuture.length) return;
+    const next = historyFuture.pop();
+    historyPast.push(next);
+    isRestoringHistory = true;
+    restoreHistorySnapshot(next.snapshot);
+    isRestoringHistory = false;
+    updateHistoryButtons();
+  }
+
+  function normalizedSelectionBox() {
+    if (!selectBoxStart || !selectBoxCurrent) return null;
+    return {
+      left: Math.min(selectBoxStart.x, selectBoxCurrent.x),
+      top: Math.min(selectBoxStart.y, selectBoxCurrent.y),
+      right: Math.max(selectBoxStart.x, selectBoxCurrent.x),
+      bottom: Math.max(selectBoxStart.y, selectBoxCurrent.y)
+    };
+  }
+
+  function hasDraggedSelectionBox() {
+    const box = normalizedSelectionBox();
+    return !!box && ((box.right - box.left) > 5 || (box.bottom - box.top) > 5);
+  }
+
   function getToolParams(type) {
     if (type === 'window') {
       return {
@@ -795,8 +954,40 @@
     }
     return {
       width: Math.max(1, parseFloat(inpDoorWidth.value) || 900),
-      height: Math.max(1, parseFloat(inpDoorHeight.value) || 2100)
+      height: Math.max(1, parseFloat(inpDoorHeight.value) || 2100),
+      hinge: defaultDoorHinge,
+      swing: defaultDoorSwing
     };
+  }
+
+  function syncDoorControlButtons() {
+    document.querySelectorAll('[data-default-door-hinge]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.defaultDoorHinge === defaultDoorHinge);
+    });
+    document.querySelectorAll('[data-default-door-swing]').forEach(btn => {
+      btn.classList.toggle('active', Number(btn.dataset.defaultDoorSwing) === defaultDoorSwing);
+    });
+
+    const selectedDoor = selectedId && selectedId.type === 'opening'
+      ? openings.find(op => op.id === selectedId.id && op.type === 'door')
+      : null;
+    if (!selectedDoor) return;
+
+    document.querySelectorAll('[data-edit-door-hinge]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.editDoorHinge === (selectedDoor.hinge || defaultDoorHinge));
+    });
+    document.querySelectorAll('[data-edit-door-swing]').forEach(btn => {
+      btn.classList.toggle('active', Number(btn.dataset.editDoorSwing) === (selectedDoor.swing ?? defaultDoorSwing));
+    });
+  }
+
+  function updateDoorOpening(id, patch) {
+    const opening = openings.find(op => op.id === id && op.type === 'door');
+    if (!opening) return;
+    Object.assign(opening, patch);
+    syncDoorControlButtons();
+    redraw();
+    recordHistory();
   }
 
   function getWallPreviewEnd(world) {
@@ -855,8 +1046,23 @@
     lengthMode = false;
     chainMode = true;
     isDrawing = true;
+    recordHistory();
     redraw();
     return true;
+  }
+
+  function drawSelectionBox() {
+    const box = normalizedSelectionBox();
+    if (!box || !hasDraggedSelectionBox()) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(37,99,235,0.10)';
+    ctx.strokeStyle = 'rgba(37,99,235,0.8)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.fillRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+    ctx.strokeRect(box.left, box.top, box.right - box.left, box.bottom - box.top);
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   function applyWallOffset(cx, cy, angle, offset, thickness) {
@@ -873,9 +1079,12 @@
     drawGrid();
     drawRoomFills();
     drawWalls();
+    drawWallJoints();
     drawOpenings();
     if (hoverOpening) drawHoverOpening();
     if (isDrawing && drawStart && drawEnd) drawTempWall();
+    drawSelectionBox();
+    drawCursorGhost();
   }
 
   function drawGrid() {
@@ -1009,6 +1218,41 @@
     }
   }
 
+  function drawWallJoints() {
+    const joints = new Map();
+    for (const wall of walls) {
+      const points = [
+        { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 },
+        { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 }
+      ];
+      for (const point of points) {
+        const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+        if (!joints.has(key)) joints.set(key, []);
+        joints.get(key).push({ wall, point });
+      }
+    }
+
+    for (const items of joints.values()) {
+      if (items.length < 2) continue;
+      const point = items[0].point;
+      const screen = toScreen(point.x, point.y);
+      const maxThickness = Math.max(...items.map(item => item.wall.thickness));
+      const size = Math.max(8, maxThickness * scale + 2);
+      const half = size / 2;
+      const selected = selectedId && selectedId.type === 'wall' && items.some(item => item.wall.id === selectedId.id);
+
+      ctx.save();
+      ctx.fillStyle = selected ? '#dbeafe' : '#eceef2';
+      ctx.strokeStyle = selected ? '#2563eb' : '#4a5568';
+      ctx.lineWidth = selected ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.rect(screen.x - half, screen.y - half, size, size);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function drawOpenings() {
     for (const op of openings) {
       const wall = walls.find(w => w.id === op.wallId);
@@ -1039,6 +1283,8 @@
     const fillColor = op.type === 'window'
       ? (isHover ? 'rgba(37,99,235,0.25)' : '#dbeafe')
       : (isHover ? 'rgba(217,119,6,0.25)' : '#fef3c7');
+    const doorHinge = op.hinge || defaultDoorHinge;
+    const doorSwing = op.swing ?? defaultDoorSwing;
 
     ctx.save();
     ctx.beginPath();
@@ -1056,6 +1302,12 @@
     ctx.stroke();
 
     if (op.type === 'window') {
+      ctx.beginPath();
+      ctx.moveTo(p1.x + dx, p1.y + dy);
+      ctx.lineTo(p1.x - dx, p1.y - dy);
+      ctx.moveTo(p2.x + dx, p2.y + dy);
+      ctx.lineTo(p2.x - dx, p2.y - dy);
+      ctx.stroke();
       for (let t = 0.25; t <= 0.75; t += 0.25) {
         const mx = p1.x + (p2.x - p1.x) * t;
         const my = p1.y + (p2.y - p1.y) * t;
@@ -1065,12 +1317,26 @@
         ctx.stroke();
       }
     } else {
-      const cx = p1.x;
-      const cy = p1.y;
-      const r = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      const startAngle = Math.atan2(p2.y - cy, p2.x - cx);
+      const hingePoint = doorHinge === 'start' ? { x: p1.x, y: p1.y } : { x: p2.x, y: p2.y };
+      const radius = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const baseAngle = doorHinge === 'start' ? angle : angle + Math.PI;
+      const openAngle = baseAngle + doorSwing * Math.PI / 2;
+      const leafEnd = {
+        x: hingePoint.x + Math.cos(openAngle) * radius,
+        y: hingePoint.y + Math.sin(openAngle) * radius
+      };
+
       ctx.beginPath();
-      ctx.arc(cx, cy, r, startAngle, startAngle - Math.PI / 2, true);
+      ctx.moveTo(hingePoint.x + dx, hingePoint.y + dy);
+      ctx.lineTo(hingePoint.x - dx, hingePoint.y - dy);
+      ctx.moveTo(hingePoint.x, hingePoint.y);
+      ctx.lineTo(leafEnd.x, leafEnd.y);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(hingePoint.x, hingePoint.y, radius, baseAngle, openAngle, doorSwing < 0);
       ctx.strokeStyle = color;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
@@ -1097,6 +1363,68 @@
   function drawHoverOpening() {
     if (!hoverOpening) return;
     drawOpening(hoverOpening, hoverOpening.wall, true);
+  }
+
+  function drawCursorGhost() {
+    if (!mouseScreen || isPanning || (tool !== 'window' && tool !== 'door')) return;
+    const params = getToolParams(tool);
+    const ghostWidth = Math.max(36, Math.min(220, params.width * scale));
+    const ghostDepth = Math.max(12, Math.min(40, (parseFloat(inpWallThick.value) || 200) * scale));
+    const label = `${params.width} × ${params.height} мм`;
+    const originX = Math.min(canvas.width - ghostWidth - 84, mouseScreen.x + 18);
+    const originY = Math.min(canvas.height - 62, mouseScreen.y + 18);
+
+    ctx.save();
+    ctx.translate(originX, originY);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeStyle = tool === 'window' ? 'rgba(37,99,235,0.75)' : 'rgba(217,119,6,0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(-8, -8, ghostWidth + 16, ghostDepth + 34, 10) : ctx.rect(-8, -8, ghostWidth + 16, ghostDepth + 34);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.rect(0, 0, ghostWidth, ghostDepth);
+    ctx.fillStyle = tool === 'window' ? 'rgba(37,99,235,0.14)' : 'rgba(217,119,6,0.14)';
+    ctx.fill();
+    ctx.strokeStyle = tool === 'window' ? '#2563eb' : '#d97706';
+    ctx.stroke();
+
+    if (tool === 'window') {
+      for (let t = 0.25; t <= 0.75; t += 0.25) {
+        const x = ghostWidth * t;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, ghostDepth);
+        ctx.stroke();
+      }
+    } else {
+      const hingeX = defaultDoorHinge === 'start' ? 0 : ghostWidth;
+      const baseAngle = defaultDoorHinge === 'start' ? 0 : Math.PI;
+      const openAngle = baseAngle + defaultDoorSwing * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(hingeX, 0);
+      ctx.lineTo(hingeX, ghostDepth);
+      ctx.moveTo(hingeX, ghostDepth / 2);
+      ctx.lineTo(
+        hingeX + Math.cos(openAngle) * ghostWidth,
+        ghostDepth / 2 + Math.sin(openAngle) * ghostWidth
+      );
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(hingeX, ghostDepth / 2, ghostWidth, baseAngle, openAngle, defaultDoorSwing < 0);
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '600 10px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, 0, ghostDepth + 8);
+    ctx.restore();
   }
 
   function drawTempWall() {
@@ -1206,6 +1534,7 @@
     if (t !== 'wall') {
       resetDrawingState();
     }
+    clearSelectionBox();
     hoverOpening = null;
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tool' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('active');
@@ -1225,6 +1554,7 @@
   function clearSelection() {
     selectedId = null;
     editPanel.style.display = 'none';
+    syncDoorControlButtons();
     redraw();
   }
 
@@ -1256,8 +1586,98 @@
         <div class="edit-row"><label>Ширина</label><b>${op.width} мм</b></div>
         <div class="edit-row"><label>Высота</label><b>${op.height} мм</b></div>
       `;
+      if (op.type === 'door') {
+        html += `
+          <div class="param-group" style="margin-top:6px">
+            <div class="param-label">Петля</div>
+            <div class="choice-grid">
+              <button class="choice-btn compact" type="button" data-edit-door-hinge="start">У начала</button>
+              <button class="choice-btn compact" type="button" data-edit-door-hinge="end">У конца</button>
+            </div>
+          </div>
+          <div class="param-group">
+            <div class="param-label">Сторона дуги</div>
+            <div class="choice-grid">
+              <button class="choice-btn compact" type="button" data-edit-door-swing="1">Слева</button>
+              <button class="choice-btn compact" type="button" data-edit-door-swing="-1">Справа</button>
+            </div>
+          </div>
+        `;
+      }
     }
     editContent.innerHTML = html;
+    syncDoorControlButtons();
+  }
+
+  editContent.addEventListener('click', e => {
+    const hingeBtn = e.target.closest('[data-edit-door-hinge]');
+    if (hingeBtn && selectedId && selectedId.type === 'opening') {
+      updateDoorOpening(selectedId.id, { hinge: hingeBtn.dataset.editDoorHinge });
+      return;
+    }
+
+    const swingBtn = e.target.closest('[data-edit-door-swing]');
+    if (swingBtn && selectedId && selectedId.type === 'opening') {
+      updateDoorOpening(selectedId.id, { swing: Number(swingBtn.dataset.editDoorSwing) });
+    }
+  });
+
+  function pickObjectAtWorldPoint(wx, wy) {
+    const hitWall = findClosestWallSel(wx, wy);
+    const hitOpen = findClosestOpening(wx, wy);
+    if (hitOpen) selectObject('opening', hitOpen.id);
+    else if (hitWall) selectObject('wall', hitWall.id);
+    else clearSelection();
+  }
+
+  function selectObjectsInRect(box) {
+    const p1 = toWorld(box.left, box.top);
+    const p2 = toWorld(box.right, box.bottom);
+    const worldRect = {
+      left: Math.min(p1.x, p2.x),
+      top: Math.min(p1.y, p2.y),
+      right: Math.max(p1.x, p2.x),
+      bottom: Math.max(p1.y, p2.y)
+    };
+    const centerX = (worldRect.left + worldRect.right) / 2;
+    const centerY = (worldRect.top + worldRect.bottom) / 2;
+
+    const openingCandidates = openings
+      .map(op => {
+        const wall = walls.find(w => w.id === op.wallId);
+        if (!wall) return null;
+        const mx = wall.x1 + (wall.x2 - wall.x1) * op.t;
+        const my = wall.y1 + (wall.y2 - wall.y1) * op.t;
+        if (mx < worldRect.left || mx > worldRect.right || my < worldRect.top || my > worldRect.bottom) return null;
+        return { opening: op, dist: Math.hypot(mx - centerX, my - centerY) };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.dist - b.dist);
+
+    if (openingCandidates.length) {
+      selectObject('opening', openingCandidates[0].opening.id);
+      return;
+    }
+
+    const wallCandidates = walls
+      .map(w => {
+        const minX = Math.min(w.x1, w.x2);
+        const maxX = Math.max(w.x1, w.x2);
+        const minY = Math.min(w.y1, w.y2);
+        const maxY = Math.max(w.y1, w.y2);
+        const overlaps = !(maxX < worldRect.left || minX > worldRect.right || maxY < worldRect.top || minY > worldRect.bottom);
+        if (!overlaps) return null;
+        return { wall: w, dist: segmentClosest(centerX, centerY, w).dist };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.dist - b.dist);
+
+    if (wallCandidates.length) {
+      selectObject('wall', wallCandidates[0].wall.id);
+      return;
+    }
+
+    clearSelection();
   }
 
   document.getElementById('btnDeleteSelected').addEventListener('click', () => {
@@ -1270,12 +1690,14 @@
     }
     clearSelection();
     computeRooms();
+    recordHistory();
   });
 
   // ─── MOUSE EVENTS ────────────────────────────────────────────────
   canvas.addEventListener('mousedown', onMouseDown);
   canvas.addEventListener('mousemove', onMouseMove);
   canvas.addEventListener('mouseup', onMouseUp);
+  window.addEventListener('mouseup', onMouseUp);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   canvas.addEventListener('wheel', onWheel);
 
@@ -1298,6 +1720,7 @@
     }
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
+    mouseScreen = { x: pos.x, y: pos.y };
     if (tool === 'wall') {
       if (!isDrawing) {
         const snapped = snap(world.x, world.y);
@@ -1314,16 +1737,16 @@
       }
     } else if (tool === 'window' || tool === 'door') {
       if (hoverOpening) {
-        addOpening(hoverOpening.wall, hoverOpening.t, hoverOpening.width, hoverOpening.height, tool);
-        computeRooms();
-        redraw();
+        if (addOpening(hoverOpening.wall, hoverOpening.t, hoverOpening.width, hoverOpening.height, tool, hoverOpening)) {
+          computeRooms();
+          recordHistory();
+          redraw();
+        }
       }
     } else if (tool === 'select') {
-      const hitWall = findClosestWallSel(world.x, world.y);
-      const hitOpen = findClosestOpening(world.x, world.y);
-      if (hitOpen) selectObject('opening', hitOpen.id);
-      else if (hitWall) selectObject('wall', hitWall.id);
-      else clearSelection();
+      selectBoxStart = { x: pos.x, y: pos.y };
+      selectBoxCurrent = { x: pos.x, y: pos.y };
+      redraw();
     }
   }
 
@@ -1337,7 +1760,14 @@
 
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
+    mouseScreen = { x: pos.x, y: pos.y };
     lblCoords.textContent = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм`;
+
+    if (tool === 'select' && selectBoxStart) {
+      selectBoxCurrent = { x: pos.x, y: pos.y };
+      redraw();
+      return;
+    }
 
     if (tool === 'window' || tool === 'door') {
       const hit = findClosestWall(world.x, world.y);
@@ -1345,7 +1775,7 @@
         const params = getToolParams(tool);
         const wallLen = Math.hypot(hit.wall.x2 - hit.wall.x1, hit.wall.y2 - hit.wall.y1);
         hoverOpening = wallLen > params.width + 1
-          ? { wall: hit.wall, t: hit.t, width: params.width, height: params.height, type: tool }
+          ? { wall: hit.wall, t: hit.t, width: params.width, height: params.height, type: tool, hinge: params.hinge, swing: params.swing }
           : null;
       } else {
         hoverOpening = null;
@@ -1383,6 +1813,17 @@
   }
 
   function onMouseUp(e) {
+    if (tool === 'select' && selectBoxStart) {
+      const box = normalizedSelectionBox();
+      if (box && hasDraggedSelectionBox()) selectObjectsInRect(box);
+      else if (box) {
+        const world = toWorld(selectBoxStart.x, selectBoxStart.y);
+        pickObjectAtWorldPoint(world.x, world.y);
+      }
+      clearSelectionBox();
+      redraw();
+      return;
+    }
     if (isPanning) {
       isPanning = false;
       canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
@@ -1405,6 +1846,18 @@
   window.addEventListener('keydown', e => {
     const targetIsEditable = isEditableTarget(e.target);
 
+    if (!targetIsEditable && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redoHistory();
+      else undoHistory();
+      return;
+    }
+    if (!targetIsEditable && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      redoHistory();
+      return;
+    }
+
     if (e.key === 'Shift') {
       shiftDown = true;
       updateSnapBadge();
@@ -1419,6 +1872,7 @@
         resetDrawingState();
         redraw();
       }
+      clearSelectionBox();
       clearSelection();
       hoverOpening = null;
       redraw();
@@ -1486,6 +1940,24 @@
     });
   });
 
+  document.querySelectorAll('[data-default-door-hinge]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      defaultDoorHinge = btn.dataset.defaultDoorHinge;
+      syncDoorControlButtons();
+      redraw();
+    });
+  });
+  document.querySelectorAll('[data-default-door-swing]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      defaultDoorSwing = Number(btn.dataset.defaultDoorSwing);
+      syncDoorControlButtons();
+      redraw();
+    });
+  });
+
+  btnUndo.addEventListener('click', undoHistory);
+  btnRedo.addEventListener('click', redoHistory);
+
   // ─── WALL / OPENING MANAGEMENT ───────────────────────────────────
   function addWall(start, end) {
     const thick = parseFloat(inpWallThick.value) || 200;
@@ -1498,16 +1970,23 @@
       id: idWall++,
       x1: s.x, y1: s.y,
       x2: e2.x, y2: e2.y,
+      cx1: start.x, cy1: start.y,
+      cx2: end.x, cy2: end.y,
       thickness: thick, height: height
     });
     redraw();
   }
 
-  function addOpening(wall, t, width, height, type) {
+  function addOpening(wall, t, width, height, type, options = {}) {
     const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
     if (wlen <= width) return false;
     let tc = Math.min(1 - width / 2 / wlen, Math.max(width / 2 / wlen, t));
-    openings.push({ id: idOpen++, wallId: wall.id, t: tc, width, height, type });
+    const opening = { id: idOpen++, wallId: wall.id, t: tc, width, height, type };
+    if (type === 'door') {
+      opening.hinge = options.hinge || defaultDoorHinge;
+      opening.swing = options.swing ?? defaultDoorSwing;
+    }
+    openings.push(opening);
     redraw();
     return true;
   }
@@ -1790,8 +2269,10 @@
     walls = []; openings = []; rooms = []; idWall = 1; idOpen = 1;
     hoverOpening = null;
     resetDrawingState();
+    clearSelectionBox();
     clearSelection();
     updateExpl();
+    recordHistory();
     redraw();
   });
 
@@ -1822,10 +2303,13 @@
   // ─── INIT ─────────────────────────────────────────────────────────
   setTool('select');
   updateSnapBadge();
+  syncDoorControlButtons();
   wallOffset = 'center';
   document.querySelectorAll('.offset-btn').forEach(b => b.classList.remove('active'));
   const centerBtn = document.querySelector('.offset-btn[data-offset="center"]');
   if (centerBtn) centerBtn.classList.add('active');
+  recordHistory();
+  updateHistoryButtons();
   redraw();
 
 })();
