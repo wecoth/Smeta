@@ -790,6 +790,7 @@
   let isRestoringHistory = false;
   let wallHatchPattern = null;
   let currentGuideLine = null;
+  let currentObjectSnap = null;
 
   // colors for rooms
   const ROOM_COLORS = [
@@ -847,7 +848,36 @@
   function toWorld(sx, sy) {
     return { x: (sx - panX) / scale, y: (sy - panY) / scale };
   }
-  function snap(x, y, forceNoEndpoint = false) {
+  function snap(x, y, options = {}) {
+    if (typeof options === 'boolean') options = { forceNoEndpoint: options };
+    const forceNoEndpoint = !!options.forceNoEndpoint;
+    const screenPoint = options.screenPoint || toScreen(x, y);
+    const objectSnap = !options.skipObject
+      ? findObjectSnapCandidate(
+          { x, y },
+          screenPoint,
+          {
+            includeEndpoint: !forceNoEndpoint,
+            includeMidpoint: !forceNoEndpoint,
+            includeIntersection: !forceNoEndpoint,
+            includePerpendicular: !!options.includePerpendicular,
+            startPoint: options.startPoint || null
+          }
+        )
+      : null;
+    if (objectSnap) {
+      return {
+        x: objectSnap.x,
+        y: objectSnap.y,
+        snapType: objectSnap.type,
+        snappedToEndpoint: objectSnap.type === 'endpoint',
+        snappedToMidpoint: objectSnap.type === 'midpoint',
+        snappedToIntersection: objectSnap.type === 'intersection',
+        snappedToPerpendicular: objectSnap.type === 'perpendicular',
+        snapLabel: objectSnap.label || '',
+        snapDistance: objectSnap.distance
+      };
+    }
     const g = (shiftDown && ctrlDown) ? 1000 : shiftDown ? 100 : 10;
     let sx = Math.round(x / g) * g;
     let sy = Math.round(y / g) * g;
@@ -856,12 +886,32 @@
       for (const w of walls) {
         for (const pt of getWallContourEndpoints(w)) {
           if (Math.hypot(x - pt.x, y - pt.y) < snapDist) {
-            return { x: pt.x, y: pt.y, snappedToEndpoint: true };
+            return {
+              x: pt.x,
+              y: pt.y,
+              snapType: 'endpoint',
+              snappedToEndpoint: true,
+              snappedToMidpoint: false,
+              snappedToIntersection: false,
+              snappedToPerpendicular: false,
+              snapLabel: getSnapLabel('endpoint'),
+              snapDistance: 0
+            };
           }
         }
       }
     }
-    return { x: sx, y: sy, snappedToEndpoint: false };
+    return {
+      x: sx,
+      y: sy,
+      snapType: null,
+      snappedToEndpoint: false,
+      snappedToMidpoint: false,
+      snappedToIntersection: false,
+      snappedToPerpendicular: false,
+      snapLabel: '',
+      snapDistance: Infinity
+    };
   }
 
   function updateSnapBadge() {
@@ -886,6 +936,7 @@
     drawStart = null;
     drawEnd = null;
     currentGuideLine = null;
+    currentObjectSnap = null;
     lengthInput = '';
     lengthMode = false;
     lengthOverlay.style.display = 'none';
@@ -945,6 +996,171 @@
       { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 },
       { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 }
     ];
+  }
+
+  function getWallContourSegment(wall) {
+    return {
+      x1: wall.cx1 ?? wall.x1,
+      y1: wall.cy1 ?? wall.y1,
+      x2: wall.cx2 ?? wall.x2,
+      y2: wall.cy2 ?? wall.y2
+    };
+  }
+
+  function getWallContourMidpoint(wall) {
+    const segment = getWallContourSegment(wall);
+    return {
+      x: (segment.x1 + segment.x2) / 2,
+      y: (segment.y1 + segment.y2) / 2
+    };
+  }
+
+  function segmentIntersection(a, b, epsilon = 0.001) {
+    const r = { x: a.x2 - a.x1, y: a.y2 - a.y1 };
+    const s = { x: b.x2 - b.x1, y: b.y2 - b.y1 };
+    const denom = r.x * s.y - r.y * s.x;
+    if (Math.abs(denom) < epsilon) return null;
+    const qp = { x: b.x1 - a.x1, y: b.y1 - a.y1 };
+    const t = (qp.x * s.y - qp.y * s.x) / denom;
+    const u = (qp.x * r.y - qp.y * r.x) / denom;
+    if (t < -epsilon || t > 1 + epsilon || u < -epsilon || u > 1 + epsilon) return null;
+    return {
+      x: a.x1 + r.x * t,
+      y: a.y1 + r.y * t,
+      t,
+      u
+    };
+  }
+
+  function projectPointOntoSegment(point, segment) {
+    const dx = segment.x2 - segment.x1;
+    const dy = segment.y2 - segment.y1;
+    const len2 = dx * dx + dy * dy;
+    if (len2 < 0.0001) {
+      return {
+        x: segment.x1,
+        y: segment.y1,
+        t: 0,
+        distance: Math.hypot(point.x - segment.x1, point.y - segment.y1)
+      };
+    }
+    let t = ((point.x - segment.x1) * dx + (point.y - segment.y1) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const proj = {
+      x: segment.x1 + dx * t,
+      y: segment.y1 + dy * t
+    };
+    return {
+      ...proj,
+      t,
+      distance: Math.hypot(point.x - proj.x, point.y - proj.y)
+    };
+  }
+
+  function getSnapTypePriority(type) {
+    return {
+      endpoint: 0,
+      intersection: 1,
+      midpoint: 2,
+      perpendicular: 3
+    }[type] ?? 9;
+  }
+
+  function getSnapLabel(type) {
+    return {
+      endpoint: 'Угол',
+      midpoint: 'Середина',
+      intersection: 'Пересечение',
+      perpendicular: 'Перпендикуляр'
+    }[type] || '';
+  }
+
+  function findObjectSnapCandidate(worldPoint, screenPoint, options = {}) {
+    const tolerance = options.tolerance ?? 16;
+    const bestByKey = new Map();
+
+    function register(type, point, extra = {}) {
+      const screen = toScreen(point.x, point.y);
+      const distance = Math.hypot(screenPoint.x - screen.x, screenPoint.y - screen.y);
+      if (distance > tolerance) return;
+      const key = `${type}:${Math.round(point.x)},${Math.round(point.y)}`;
+      const candidate = {
+        type,
+        x: point.x,
+        y: point.y,
+        distance,
+        label: getSnapLabel(type),
+        ...extra
+      };
+      const prev = bestByKey.get(key);
+      if (!prev || candidate.distance < prev.distance) bestByKey.set(key, candidate);
+    }
+
+    if (options.includeEndpoint) {
+      for (const wall of walls) {
+        for (const point of getWallContourEndpoints(wall)) {
+          register('endpoint', point, { wallId: wall.id });
+        }
+      }
+    }
+
+    if (options.includeMidpoint) {
+      for (const wall of walls) {
+        register('midpoint', getWallContourMidpoint(wall), { wallId: wall.id });
+      }
+    }
+
+    if (options.includeIntersection) {
+      for (let i = 0; i < walls.length; i++) {
+        for (let j = i + 1; j < walls.length; j++) {
+          const a = getWallContourSegment(walls[i]);
+          const b = getWallContourSegment(walls[j]);
+          const hit = segmentIntersection(a, b);
+          if (!hit) continue;
+          const atEndpoint = (hit.t < 0.02 || hit.t > 0.98 || hit.u < 0.02 || hit.u > 0.98);
+          if (atEndpoint) continue;
+          register('intersection', hit, { wallIds: [walls[i].id, walls[j].id] });
+        }
+      }
+    }
+
+    if (options.includePerpendicular && options.startPoint) {
+      for (const wall of walls) {
+        const segment = getWallContourSegment(wall);
+        const projection = projectPointOntoSegment(options.startPoint, segment);
+        if (projection.t <= 0.03 || projection.t >= 0.97) continue;
+        if (projection.distance < 0.5) continue;
+        register('perpendicular', projection, {
+          wallId: wall.id,
+          wallAngle: Math.atan2(segment.y2 - segment.y1, segment.x2 - segment.x1)
+        });
+      }
+    }
+
+    const candidates = [...bestByKey.values()];
+    candidates.sort((a, b) => {
+      if (Math.abs(a.distance - b.distance) > 0.5) return a.distance - b.distance;
+      return getSnapTypePriority(a.type) - getSnapTypePriority(b.type);
+    });
+    return candidates[0] || null;
+  }
+
+  function updateWallObjectSnap(worldPoint, screenPoint) {
+    if (tool !== 'wall') {
+      currentObjectSnap = null;
+      return;
+    }
+    currentObjectSnap = findObjectSnapCandidate(
+      worldPoint,
+      screenPoint,
+      {
+        includeEndpoint: true,
+        includeMidpoint: true,
+        includeIntersection: true,
+        includePerpendicular: isDrawing && !!drawStart,
+        startPoint: drawStart
+      }
+    );
   }
 
   function getWallJointPoint(wall, endpoint) {
@@ -1106,6 +1322,42 @@
     };
   }
 
+  function normalizeDirection(dir) {
+    if (Math.abs(dir.x) >= Math.abs(dir.y)) {
+      return dir.x >= 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+    }
+    return dir.y >= 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+  }
+
+  function getGuideAxes(guide) {
+    const primary = normalizeDirection(guide.dir);
+    const secondary = normalizeDirection({ x: -primary.y, y: primary.x });
+    return [
+      {
+        key: 'primary',
+        dir: primary,
+        color: Math.abs(primary.x) > 0 ? '#ff8800' : '#ef4444'
+      },
+      {
+        key: 'secondary',
+        dir: secondary,
+        color: Math.abs(secondary.x) > 0 ? '#ff8800' : '#ef4444'
+      }
+    ];
+  }
+
+  function getNearestGuideAxis(screenPoint, guide) {
+    let best = null;
+    for (const axis of getGuideAxes(guide)) {
+      const axisGuide = { anchor: guide.anchor, dir: axis.dir };
+      const distance = distancePointToGuideLineScreen(screenPoint, axisGuide);
+      if (!best || distance < best.distance) {
+        best = { ...axis, distance };
+      }
+    }
+    return best;
+  }
+
   function findGuideCandidate(screenPoint) {
     const tolerance = 14;
     let best = null;
@@ -1141,7 +1393,8 @@
     }
 
     if (currentGuideLine) {
-      const guideDistance = distancePointToGuideLineScreen(screenPoint, currentGuideLine);
+      const nearestAxis = getNearestGuideAxis(screenPoint, currentGuideLine);
+      const guideDistance = nearestAxis ? nearestAxis.distance : Infinity;
       const anchorScreen = toScreen(currentGuideLine.anchor.x, currentGuideLine.anchor.y);
       const anchorDistance = Math.hypot(screenPoint.x - anchorScreen.x, screenPoint.y - anchorScreen.y);
       if (guideDistance <= 18 || anchorDistance <= 20) return;
@@ -1152,15 +1405,18 @@
 
   function drawCurrentGuideLine() {
     if (!currentGuideLine) return;
-    const { start, end, anchor } = getGuideLineScreenEndpoints(currentGuideLine);
+    const anchor = toScreen(currentGuideLine.anchor.x, currentGuideLine.anchor.y);
     ctx.save();
-    ctx.strokeStyle = '#ff8800';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 8]);
-    ctx.beginPath();
-    ctx.moveTo(start.x, start.y);
-    ctx.lineTo(end.x, end.y);
-    ctx.stroke();
+    for (const axis of getGuideAxes(currentGuideLine)) {
+      const { start, end } = getGuideLineScreenEndpoints({ anchor: currentGuideLine.anchor, dir: axis.dir });
+      ctx.strokeStyle = axis.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 8]);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
     ctx.setLineDash([]);
     ctx.fillStyle = '#ff8800';
     ctx.beginPath();
@@ -1169,6 +1425,69 @@
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCurrentObjectSnap() {
+    if (!currentObjectSnap || tool !== 'wall') return;
+    const point = toScreen(currentObjectSnap.x, currentObjectSnap.y);
+    const color = {
+      endpoint: '#f59e0b',
+      midpoint: '#10b981',
+      intersection: '#8b5cf6',
+      perpendicular: '#ef4444'
+    }[currentObjectSnap.type] || '#2563eb';
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = '#ffffff';
+    ctx.lineWidth = 2;
+
+    if (currentObjectSnap.type === 'endpoint') {
+      ctx.beginPath();
+      ctx.rect(point.x - 5, point.y - 5, 10, 10);
+      ctx.fill();
+      ctx.stroke();
+    } else if (currentObjectSnap.type === 'midpoint') {
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y - 6);
+      ctx.lineTo(point.x + 6, point.y);
+      ctx.lineTo(point.x, point.y + 6);
+      ctx.lineTo(point.x - 6, point.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (currentObjectSnap.type === 'intersection') {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(point.x - 8, point.y);
+      ctx.lineTo(point.x + 8, point.y);
+      ctx.moveTo(point.x, point.y - 8);
+      ctx.lineTo(point.x, point.y + 8);
+      ctx.stroke();
+    } else if (currentObjectSnap.type === 'perpendicular') {
+      const wallAngle = currentObjectSnap.wallAngle || 0;
+      const ux = Math.cos(wallAngle);
+      const uy = Math.sin(wallAngle);
+      const vx = -uy;
+      const vy = ux;
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.lineTo(point.x + ux * 10, point.y + uy * 10);
+      ctx.lineTo(point.x + ux * 10 + vx * 10, point.y + uy * 10 + vy * 10);
+      ctx.lineTo(point.x + vx * 10, point.y + vy * 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    drawAlignedTextBox(currentObjectSnap.label, { x: point.x, y: point.y - 18 }, 0, {
+      textColor: color,
+      background: 'rgba(255,255,255,0.96)'
+    });
     ctx.restore();
   }
 
@@ -1408,9 +1727,15 @@
   }
 
   function getWallPreviewEnd(world) {
-    let rawEnd = { ...snap(world.x, world.y) };
+    const snappedBase = snap(world.x, world.y, {
+      screenPoint: mouseScreen ? { ...mouseScreen } : toScreen(world.x, world.y),
+      includePerpendicular: !!drawStart,
+      startPoint: drawStart
+    });
+    let rawEnd = { ...snappedBase };
+    const cursorScreen = mouseScreen ? { ...mouseScreen } : toScreen(world.x, world.y);
 
-    if (!shiftDown && drawStart) {
+    if (!snappedBase.snapType && !shiftDown && drawStart) {
       const dx = rawEnd.x - drawStart.x;
       const dy = rawEnd.y - drawStart.y;
       const len = Math.hypot(dx, dy);
@@ -1431,23 +1756,30 @@
       }
     }
 
-    if (currentGuideLine) {
+    if (currentGuideLine && !snappedBase.snapType) {
+      const nearestAxis = getNearestGuideAxis(cursorScreen, currentGuideLine);
+      const axisGuide = nearestAxis ? { anchor: currentGuideLine.anchor, dir: nearestAxis.dir } : currentGuideLine;
       rawEnd = {
         ...rawEnd,
-        ...projectPointToGuideLineWorld(rawEnd, currentGuideLine),
+        ...projectPointToGuideLineWorld(rawEnd, axisGuide),
         snappedToGuide: true
       };
+      rawEnd.guideAxisKey = nearestAxis ? nearestAxis.key : 'primary';
     } else {
       rawEnd.snappedToGuide = false;
+      rawEnd.guideAxisKey = null;
     }
 
     if (lengthMode && lengthInput && drawStart) {
       const targetLen = parseFloat(lengthInput);
       if (!isNaN(targetLen) && targetLen > 0) {
         if (currentGuideLine) {
-          const ax = currentGuideLine.anchor.x - drawStart.x;
-          const ay = currentGuideLine.anchor.y - drawStart.y;
-          const dot = ax * currentGuideLine.dir.x + ay * currentGuideLine.dir.y;
+          const nearestAxis = getNearestGuideAxis(cursorScreen, currentGuideLine);
+          const axisDir = nearestAxis ? nearestAxis.dir : currentGuideLine.dir;
+          const axisGuide = { anchor: currentGuideLine.anchor, dir: axisDir };
+          const ax = axisGuide.anchor.x - drawStart.x;
+          const ay = axisGuide.anchor.y - drawStart.y;
+          const dot = ax * axisGuide.dir.x + ay * axisGuide.dir.y;
           const dist2 = ax * ax + ay * ay;
           const disc = dot * dot - (dist2 - targetLen * targetLen);
           if (disc >= 0) {
@@ -1455,17 +1787,18 @@
             const t1 = -dot + sqrtDisc;
             const t2 = -dot - sqrtDisc;
             const p1 = {
-              x: currentGuideLine.anchor.x + currentGuideLine.dir.x * t1,
-              y: currentGuideLine.anchor.y + currentGuideLine.dir.y * t1
+              x: axisGuide.anchor.x + axisGuide.dir.x * t1,
+              y: axisGuide.anchor.y + axisGuide.dir.y * t1
             };
             const p2 = {
-              x: currentGuideLine.anchor.x + currentGuideLine.dir.x * t2,
-              y: currentGuideLine.anchor.y + currentGuideLine.dir.y * t2
+              x: axisGuide.anchor.x + axisGuide.dir.x * t2,
+              y: axisGuide.anchor.y + axisGuide.dir.y * t2
             };
             const d1 = Math.hypot(rawEnd.x - p1.x, rawEnd.y - p1.y);
             const d2 = Math.hypot(rawEnd.x - p2.x, rawEnd.y - p2.y);
             rawEnd = d1 <= d2 ? p1 : p2;
             rawEnd.snappedToGuide = true;
+            rawEnd.guideAxisKey = nearestAxis ? nearestAxis.key : 'primary';
           }
         } else {
           const dx = rawEnd.x - drawStart.x;
@@ -1481,7 +1814,7 @@
       }
     }
 
-    rawEnd.snappedToEndpoint = snap(world.x, world.y).snappedToEndpoint;
+    rawEnd.snappedToEndpoint = snappedBase.snappedToEndpoint;
     return rawEnd;
   }
 
@@ -1495,6 +1828,7 @@
     drawStart = { x: end.x, y: end.y };
     drawEnd = { x: end.x, y: end.y };
     currentGuideLine = null;
+    currentObjectSnap = null;
     lengthInput = '';
     lengthMode = false;
     chainMode = true;
@@ -1537,6 +1871,7 @@
     if (hoverOpening) drawHoverOpening();
     if (isDrawing && drawStart && drawEnd) drawTempWall();
     if (tool === 'wall' && currentGuideLine) drawCurrentGuideLine();
+    if (tool === 'wall' && currentObjectSnap) drawCurrentObjectSnap();
     drawSelectionBox();
     drawCursorGhost();
   }
@@ -2060,11 +2395,18 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // end point — highlight yellow if snapped to endpoint
-    const endSnap = drawEnd && drawEnd.snappedToEndpoint;
+    // end point — highlight according to active snap type
+    const snapType = drawEnd && drawEnd.snapType;
+    const endSnap = !!snapType || (drawEnd && drawEnd.snappedToEndpoint);
+    const snapColor = {
+      endpoint: '#f59e0b',
+      midpoint: '#10b981',
+      intersection: '#8b5cf6',
+      perpendicular: '#ef4444'
+    }[snapType] || (endSnap ? '#f59e0b' : '#2563eb');
     ctx.beginPath();
     ctx.arc(ps2.x, ps2.y, endSnap ? 8 : 4, 0, Math.PI*2);
-    ctx.fillStyle = endSnap ? '#f59e0b' : '#2563eb';
+    ctx.fillStyle = snapColor;
     ctx.fill();
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 1.5;
@@ -2072,7 +2414,13 @@
     if (endSnap) {
       ctx.beginPath();
       ctx.arc(ps2.x, ps2.y, 14, 0, Math.PI*2);
-      ctx.strokeStyle = 'rgba(245,158,11,0.5)';
+      ctx.strokeStyle = snapType === 'endpoint'
+        ? 'rgba(245,158,11,0.5)'
+        : snapType === 'midpoint'
+          ? 'rgba(16,185,129,0.45)'
+          : snapType === 'intersection'
+            ? 'rgba(139,92,246,0.45)'
+            : 'rgba(239,68,68,0.45)';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -2116,6 +2464,7 @@
     }
     clearSelectionPointerState();
     hoverOpening = null;
+    currentObjectSnap = null;
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tool' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('active');
     const labels = { select: 'Выбор', wall: 'Стена', window: 'Окно', door: 'Дверь' };
@@ -2309,11 +2658,11 @@
     if (tool !== 'select' && selectedItems.length && !shiftDown) clearSelection();
     if (tool === 'wall') {
       if (!isDrawing) {
-        const snapped = snap(world.x, world.y);
+        const snapped = snap(world.x, world.y, { screenPoint: pos });
         isDrawing = true;
         chainMode = false;
         drawStart = { x: snapped.x, y: snapped.y };
-        drawEnd = { x: snapped.x, y: snapped.y, snappedToEndpoint: snapped.snappedToEndpoint };
+        drawEnd = { ...snapped };
         lengthInput = '';
         lengthMode = false;
         redraw();
@@ -2355,7 +2704,9 @@
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
     mouseScreen = { x: pos.x, y: pos.y };
-    lblCoords.textContent = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм`;
+    if (tool === 'wall') updateWallObjectSnap(world, pos);
+    else currentObjectSnap = null;
+    lblCoords.textContent = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм${tool === 'wall' && currentObjectSnap ? `  ·  ${currentObjectSnap.label}` : ''}`;
 
     if (tool === 'select' && selectBoxStart) {
       selectBoxCurrent = { x: pos.x, y: pos.y };
@@ -2392,26 +2743,8 @@
     } else if (tool === 'wall' && currentGuideLine) {
       currentGuideLine = null;
       redraw();
-    }
-
-    // Highlight nearby wall endpoints when in wall tool
-    if (tool === 'wall' && !isDrawing) {
+    } else if (tool === 'wall' && !isDrawing) {
       redraw();
-      const snapDist = 120;
-      for (const w of walls) {
-        for (const pt of getWallContourEndpoints(w)) {
-          if (Math.hypot(world.x - pt.x, world.y - pt.y) < snapDist) {
-            const s = toScreen(pt.x, pt.y);
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, 8, 0, Math.PI*2);
-            ctx.strokeStyle = 'rgba(245,158,11,0.7)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
     }
   }
 
