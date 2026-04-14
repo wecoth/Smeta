@@ -1195,15 +1195,27 @@
   }
 
   function isPointInsideWallSurface(point, wall, padding = 0.75) {
-    const projection = projectPointOntoSegment(point, {
-      x1: wall.x1,
-      y1: wall.y1,
-      x2: wall.x2,
-      y2: wall.y2
-    });
-    return projection.t > -0.02 &&
-      projection.t < 1.02 &&
-      projection.distance <= (wall.thickness / 2) + padding;
+    const start = { x: wall.x1, y: wall.y1 };
+    const end = { x: wall.x2, y: wall.y2 };
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.0001) {
+      return Math.hypot(point.x - start.x, point.y - start.y) <= (wall.thickness / 2) + padding;
+    }
+
+    const ux = dx / len;
+    const uy = dy / len;
+    const nx = -uy;
+    const ny = ux;
+    const relX = point.x - start.x;
+    const relY = point.y - start.y;
+    const along = relX * ux + relY * uy;
+    const normal = relX * nx + relY * ny;
+
+    return along >= -padding &&
+      along <= len + padding &&
+      Math.abs(normal) <= (wall.thickness / 2) + padding;
   }
 
   function isWallEndpointCoveredByAnotherWall(wall, endpoint) {
@@ -1294,6 +1306,15 @@
     }
 
     if (options.includeCorner) {
+      for (const jointRect of getWallJointRects()) {
+        const highlightPoints = getJointLocalCornerPoints(jointRect);
+        for (const point of getJointBoundaryCornerPoints(jointRect)) {
+          register('corner', point, {
+            wallIds: jointRect.wallIds,
+            highlightPoints
+          });
+        }
+      }
       for (const wall of walls) {
         for (const point of getWallCornerPoints(wall)) {
           register('corner', point, { wallId: wall.id });
@@ -1414,6 +1435,128 @@
 
   function getWallJointItemsForEndpoint(jointMap, wall, endpoint) {
     return jointMap.get(getWallJointKey(getWallJointPoint(wall, endpoint))) || [];
+  }
+
+  function getWallJointRects(jointMap = buildWallJointMap()) {
+    const rects = [];
+    const seenRects = new Set();
+    for (const items of jointMap.values()) {
+      if (items.length < 2) continue;
+      const horizontals = items.filter(item => Math.abs(item.direction.x) > 0);
+      const verticals = items.filter(item => Math.abs(item.direction.y) > 0);
+      if (!horizontals.length || !verticals.length) continue;
+
+      for (const horizontal of horizontals) {
+        for (const vertical of verticals) {
+          const joint = horizontal.point;
+          const horizontalBounds = getWallWorldBounds(horizontal.wall);
+          const verticalBounds = getWallWorldBounds(vertical.wall);
+          const x1 = horizontal.direction.x > 0 ? verticalBounds.minX : Math.max(verticalBounds.minX, joint.x);
+          const x2 = horizontal.direction.x > 0 ? Math.min(verticalBounds.maxX, joint.x) : verticalBounds.maxX;
+          const y1 = vertical.direction.y > 0 ? horizontalBounds.minY : Math.max(horizontalBounds.minY, joint.y);
+          const y2 = vertical.direction.y > 0 ? Math.min(horizontalBounds.maxY, joint.y) : horizontalBounds.maxY;
+          const left = Math.min(x1, x2);
+          const right = Math.max(x1, x2);
+          const top = Math.min(y1, y2);
+          const bottom = Math.max(y1, y2);
+          if ((right - left) < 1 || (bottom - top) < 1) continue;
+
+          const key = `${Math.round(left)},${Math.round(top)},${Math.round(right)},${Math.round(bottom)}`;
+          if (seenRects.has(key)) continue;
+          seenRects.add(key);
+
+          const boundaryEdges = getJointBoundaryEdges(left, top, right, bottom, horizontal.direction, vertical.direction);
+          if (!boundaryEdges.length) continue;
+
+          rects.push({
+            key,
+            left,
+            top,
+            right,
+            bottom,
+            wallIds: [...new Set([horizontal.wall.id, vertical.wall.id])],
+            selected: isItemSelected('wall', horizontal.wall.id) || isItemSelected('wall', vertical.wall.id),
+            boundaryEdges
+          });
+        }
+      }
+    }
+    return rects;
+  }
+
+  function getJointBoundaryCornerPoints(jointRect) {
+    const points = new Map();
+    for (const edge of jointRect.boundaryEdges) {
+      for (const point of [
+        { x: edge.x1, y: edge.y1 },
+        { x: edge.x2, y: edge.y2 }
+      ]) {
+        const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+        if (!points.has(key)) points.set(key, point);
+      }
+    }
+    return [...points.values()];
+  }
+
+  function getJointLocalCornerPoints(jointRect) {
+    const points = new Map();
+    const addPoint = point => {
+      const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+      if (!points.has(key)) points.set(key, point);
+    };
+
+    for (const point of getJointBoundaryCornerPoints(jointRect)) addPoint(point);
+
+    const epsilon = 1;
+    for (const wallId of jointRect.wallIds) {
+      const wall = walls.find(item => item.id === wallId);
+      if (!wall) continue;
+      for (const point of getWallCornerPoints(wall)) {
+        if (
+          point.x >= jointRect.left - epsilon &&
+          point.x <= jointRect.right + epsilon &&
+          point.y >= jointRect.top - epsilon &&
+          point.y <= jointRect.bottom + epsilon
+        ) {
+          addPoint(point);
+        }
+      }
+    }
+
+    return [...points.values()];
+  }
+
+  function getJointBoundaryPaths(jointRect) {
+    const activeSides = new Set(jointRect.boundaryEdges.map(edge => edge.side));
+    const defs = [
+      { side: 'top', start: { x: jointRect.left, y: jointRect.top }, end: { x: jointRect.right, y: jointRect.top } },
+      { side: 'right', start: { x: jointRect.right, y: jointRect.top }, end: { x: jointRect.right, y: jointRect.bottom } },
+      { side: 'bottom', start: { x: jointRect.right, y: jointRect.bottom }, end: { x: jointRect.left, y: jointRect.bottom } },
+      { side: 'left', start: { x: jointRect.left, y: jointRect.bottom }, end: { x: jointRect.left, y: jointRect.top } }
+    ];
+    const active = defs.map(def => activeSides.has(def.side));
+    const paths = [];
+    const visited = new Set();
+
+    if (active.every(Boolean)) {
+      paths.push([defs[0].start, defs[0].end, defs[1].end, defs[2].end, defs[3].end]);
+      return paths;
+    }
+
+    for (let i = 0; i < defs.length; i++) {
+      if (!active[i] || visited.has(i) || active[(i + defs.length - 1) % defs.length]) continue;
+      const path = [defs[i].start, defs[i].end];
+      visited.add(i);
+      let next = (i + 1) % defs.length;
+      while (active[next] && !visited.has(next)) {
+        path.push(defs[next].end);
+        visited.add(next);
+        next = (next + 1) % defs.length;
+      }
+      paths.push(path);
+    }
+
+    return paths;
   }
 
   function getWallWorldGeometry(wall) {
@@ -1596,6 +1739,21 @@
         }
       }
     }
+    for (const jointRect of getWallJointRects()) {
+      for (const point of getJointLocalCornerPoints(jointRect)) {
+        const screen = toScreen(point.x, point.y);
+        const distance = Math.hypot(screenPoint.x - screen.x, screenPoint.y - screen.y);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = {
+            id: `joint:${jointRect.key}:${Math.round(point.x)},${Math.round(point.y)}`,
+            wallIds: jointRect.wallIds,
+            anchor: { x: point.x, y: point.y },
+            dir: { x: 1, y: 0 }
+          };
+        }
+      }
+    }
     return best;
   }
 
@@ -1649,20 +1807,26 @@
 
   function drawWallCornerHotspots() {
     if (tool !== 'wall' || !currentObjectSnap) return;
-    const wallIds = currentObjectSnap.wallIds?.length
-      ? currentObjectSnap.wallIds
-      : currentObjectSnap.wallId
-        ? [currentObjectSnap.wallId]
-        : [];
-    if (!wallIds.length) return;
-
     const uniquePoints = new Map();
-    for (const wallId of wallIds) {
-      const wall = walls.find(item => item.id === wallId);
-      if (!wall) continue;
-      for (const point of getWallCornerPoints(wall)) {
+    if (Array.isArray(currentObjectSnap.highlightPoints) && currentObjectSnap.highlightPoints.length) {
+      for (const point of currentObjectSnap.highlightPoints) {
         const key = `${Math.round(point.x)},${Math.round(point.y)}`;
         if (!uniquePoints.has(key)) uniquePoints.set(key, point);
+      }
+    } else {
+      const wallIds = currentObjectSnap.wallIds?.length
+        ? currentObjectSnap.wallIds
+        : currentObjectSnap.wallId
+          ? [currentObjectSnap.wallId]
+          : [];
+      if (!wallIds.length) return;
+      for (const wallId of wallIds) {
+        const wall = walls.find(item => item.id === wallId);
+        if (!wall) continue;
+        for (const point of getWallCornerPoints(wall)) {
+          const key = `${Math.round(point.x)},${Math.round(point.y)}`;
+          if (!uniquePoints.has(key)) uniquePoints.set(key, point);
+        }
       }
     }
 
@@ -2395,94 +2559,56 @@
     }
   }
 
-  function getJointBoundaryEdges(left, top, right, bottom) {
-    const probe = Math.max(0.75, Math.min(2, Math.min(right - left, bottom - top) / 3));
-    const edges = [
-      { x1: left, y1: top, x2: right, y2: top, normal: { x: 0, y: -1 } },
-      { x1: right, y1: top, x2: right, y2: bottom, normal: { x: 1, y: 0 } },
-      { x1: left, y1: bottom, x2: right, y2: bottom, normal: { x: 0, y: 1 } },
-      { x1: left, y1: top, x2: left, y2: bottom, normal: { x: -1, y: 0 } }
-    ];
+  function getJointBoundaryEdges(left, top, right, bottom, horizontalDirection, verticalDirection) {
+    const edges = [];
+    if (verticalDirection?.y > 0) {
+      edges.push({ side: 'top', x1: left, y1: top, x2: right, y2: top });
+    } else if (verticalDirection?.y < 0) {
+      edges.push({ side: 'bottom', x1: left, y1: bottom, x2: right, y2: bottom });
+    }
 
-    return edges.filter(edge => {
-      const mid = {
-        x: (edge.x1 + edge.x2) / 2,
-        y: (edge.y1 + edge.y2) / 2
-      };
-      const inside = {
-        x: mid.x - edge.normal.x * probe,
-        y: mid.y - edge.normal.y * probe
-      };
-      const outside = {
-        x: mid.x + edge.normal.x * probe,
-        y: mid.y + edge.normal.y * probe
-      };
-      return isPointInsideAnyWall(inside) && !isPointInsideAnyWall(outside);
-    });
+    if (horizontalDirection?.x > 0) {
+      edges.push({ side: 'left', x1: left, y1: top, x2: left, y2: bottom });
+    } else if (horizontalDirection?.x < 0) {
+      edges.push({ side: 'right', x1: right, y1: top, x2: right, y2: bottom });
+    }
+
+    return edges;
   }
 
   function drawWallJoints() {
-    const joints = buildWallJointMap();
-    for (const items of joints.values()) {
-      if (items.length < 2) continue;
-      const horizontals = items.filter(item => Math.abs(item.direction.x) > 0);
-      const verticals = items.filter(item => Math.abs(item.direction.y) > 0);
-      if (!horizontals.length || !verticals.length) continue;
+    for (const jointRect of getWallJointRects()) {
+      const style = getWallSurfaceStyle(jointRect.selected);
+      const screenTopLeft = toScreen(jointRect.left, jointRect.top);
+      const screenBottomRight = toScreen(jointRect.right, jointRect.bottom);
+      const rectLeft = Math.min(screenTopLeft.x, screenBottomRight.x);
+      const rectTop = Math.min(screenTopLeft.y, screenBottomRight.y);
+      const rectRight = Math.max(screenTopLeft.x, screenBottomRight.x);
+      const rectBottom = Math.max(screenTopLeft.y, screenBottomRight.y);
 
-      const seenRects = new Set();
-      for (const horizontal of horizontals) {
-        for (const vertical of verticals) {
-          const joint = horizontal.point;
-          const horizontalBounds = getWallWorldBounds(horizontal.wall);
-          const verticalBounds = getWallWorldBounds(vertical.wall);
-          const x1 = horizontal.direction.x > 0 ? verticalBounds.minX : Math.max(verticalBounds.minX, joint.x);
-          const x2 = horizontal.direction.x > 0 ? Math.min(verticalBounds.maxX, joint.x) : verticalBounds.maxX;
-          const y1 = vertical.direction.y > 0 ? horizontalBounds.minY : Math.max(horizontalBounds.minY, joint.y);
-          const y2 = vertical.direction.y > 0 ? Math.min(horizontalBounds.maxY, joint.y) : horizontalBounds.maxY;
-          const left = Math.min(x1, x2);
-          const right = Math.max(x1, x2);
-          const top = Math.min(y1, y2);
-          const bottom = Math.max(y1, y2);
-          if ((right - left) < 1 || (bottom - top) < 1) continue;
+      fillWallShape(() => {
+        ctx.beginPath();
+        ctx.rect(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
+      }, style.fill);
 
-          const rectKey = `${Math.round(left)},${Math.round(top)},${Math.round(right)},${Math.round(bottom)}`;
-          if (seenRects.has(rectKey)) continue;
-          seenRects.add(rectKey);
-
-          const selected = isItemSelected('wall', horizontal.wall.id) || isItemSelected('wall', vertical.wall.id);
-          const style = getWallSurfaceStyle(selected);
-          const screenTopLeft = toScreen(left, top);
-          const screenBottomRight = toScreen(right, bottom);
-          const rectLeft = Math.min(screenTopLeft.x, screenBottomRight.x);
-          const rectTop = Math.min(screenTopLeft.y, screenBottomRight.y);
-          const rectRight = Math.max(screenTopLeft.x, screenBottomRight.x);
-          const rectBottom = Math.max(screenTopLeft.y, screenBottomRight.y);
-
-          fillWallShape(() => {
-            ctx.beginPath();
-            ctx.rect(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
-          }, style.fill);
-
-          const boundaryEdges = getJointBoundaryEdges(left, top, right, bottom);
-          if (!boundaryEdges.length) continue;
-
-          ctx.save();
-          ctx.strokeStyle = style.stroke;
-          ctx.lineWidth = selected ? 1.5 : 1;
-          ctx.lineCap = 'square';
-          ctx.lineJoin = 'miter';
-          ctx.miterLimit = 4;
-          ctx.beginPath();
-          for (const edge of boundaryEdges) {
-            const p1 = toScreen(edge.x1, edge.y1);
-            const p2 = toScreen(edge.x2, edge.y2);
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-          }
-          ctx.stroke();
-          ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = jointRect.selected ? 1.5 : 1;
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      ctx.miterLimit = 4;
+      ctx.beginPath();
+      for (const path of getJointBoundaryPaths(jointRect)) {
+        if (!path.length) continue;
+        const start = toScreen(path[0].x, path[0].y);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < path.length; i++) {
+          const point = toScreen(path[i].x, path[i].y);
+          ctx.lineTo(point.x, point.y);
         }
       }
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
