@@ -16,8 +16,8 @@
     --topbar-bg: #ffffff;
     --topbar-border: #dde1e8;
     --canvas-bg: #ffffff;
-    --grid-minor: #e8eaee;
-    --grid-major: #c8cdd8;
+    --grid-minor: #edf1f5;
+    --grid-major: #d9e0e8;
     --text-primary: #1a1f2e;
     --text-secondary: #5a6478;
     --text-hint: #8892a4;
@@ -32,7 +32,7 @@
     --section-title: #0f172a;
     --input-border: #dde1e8;
     --input-bg: #f8fafc;
-    --wall-fill: #e8eaee;
+    --wall-fill: #e8edf3;
     --wall-stroke: #4a5568;
     --window-color: #2563eb;
     --door-color: #d97706;
@@ -178,7 +178,7 @@
 
   /* ── RIGHT PANEL ─────────────────────────── */
   .right-panel {
-    width: 264px;
+    width: 320px;
     flex-shrink: 0;
     background: var(--panel-bg);
     border-left: 1px solid var(--panel-border);
@@ -299,6 +299,16 @@
     margin-top: 4px;
   }
   .hint-box b { font-weight: 600; }
+
+  .tool-panel { display: none; }
+  .tool-panel.active { display: block; }
+
+  .section-note {
+    font-size: 10.5px;
+    color: var(--text-hint);
+    margin: -4px 0 10px;
+    line-height: 1.45;
+  }
 
   /* Explication table panel */
   .expl-panel {
@@ -487,7 +497,7 @@
       <span>Инструмент: <b id="lblTool">Выбор</b></span>
       <span id="lblCoords">X: 0 мм &nbsp; Y: 0 мм</span>
       <span id="lblLen" style="display:none">Длина: <b id="lblLenVal">0</b> мм</span>
-      <span style="margin-left:auto; color: #94a3b8;">Колёсико — масштаб · ПКМ-тяг — панорама · Shift — привязка 1м</span>
+      <span style="margin-left:auto; color: #94a3b8;">Клик — старт/финиш стены · ПКМ-тяг — панорама · Shift — шаг 100 мм</span>
     </div>
   </div>
 
@@ -521,6 +531,7 @@
       <!-- WALL PARAMS -->
       <div class="rp-section">
         <div class="rp-section-title">Параметры стен</div>
+        <div class="section-note">Точка привязки сохраняется на всём контуре, поэтому замыкание идёт в тот же левый, центральный или правый край.</div>
         <div class="param-group">
           <div class="param-label">Толщина <span class="param-unit">мм</span></div>
           <div class="param-input-wrap">
@@ -553,29 +564,53 @@
           </div>
         </div>
         <div class="hint-box">
-          <b>Цепочка:</b> стены рисуются подряд автоматически. <b>Esc</b> — завершить. <b>Ввод длины:</b> цифры → Enter
+          <b>Клик:</b> задаёт старт и финиш стены. <b>Esc</b> — завершить цепочку. <b>Ввод длины:</b> цифры → Enter. <b>90°:</b> мягко магнитится к осям X/Y.
         </div>
       </div>
 
-      <!-- OPENING PARAMS -->
-      <div class="rp-section">
-        <div class="rp-section-title">Окна и двери</div>
+      <!-- WINDOW PARAMS -->
+      <div class="rp-section tool-panel" id="windowParams">
+        <div class="rp-section-title">Параметры окна</div>
+        <div class="section-note">Полупрозрачный предпросмотр покажет окно на стене ещё до клика, вместе с расстояниями до углов.</div>
         <div class="param-group">
-          <div class="param-label">Ширина проёма <span class="param-unit">мм</span></div>
+          <div class="param-label">Ширина окна <span class="param-unit">мм</span></div>
           <div class="param-input-wrap">
-            <input class="param-input" type="number" id="inpOpenWidth" value="900" min="200" max="5000" step="50">
+            <input class="param-input" type="number" id="inpWindowWidth" value="1200" min="200" max="5000" step="50">
             <span class="param-input-unit">мм</span>
           </div>
         </div>
         <div class="param-group">
-          <div class="param-label">Высота проёма <span class="param-unit">мм</span></div>
+          <div class="param-label">Высота окна <span class="param-unit">мм</span></div>
           <div class="param-input-wrap">
-            <input class="param-input" type="number" id="inpOpenHeight" value="1500" min="200" max="4000" step="100">
+            <input class="param-input" type="number" id="inpWindowHeight" value="1500" min="200" max="4000" step="100">
             <span class="param-input-unit">мм</span>
           </div>
         </div>
         <div class="hint-box">
-          Выберите инструмент и кликните на стену — проём встанет автоматически
+          Наведите окно на стену и кликните только когда устроят оба расстояния до углов
+        </div>
+      </div>
+
+      <!-- DOOR PARAMS -->
+      <div class="rp-section tool-panel" id="doorParams">
+        <div class="rp-section-title">Параметры двери</div>
+        <div class="section-note">Дверь наводится так же, как окно: сначала прозрачный предпросмотр и размеры, потом установка.</div>
+        <div class="param-group">
+          <div class="param-label">Ширина двери <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" id="inpDoorWidth" value="900" min="200" max="5000" step="50">
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="param-group">
+          <div class="param-label">Высота двери <span class="param-unit">мм</span></div>
+          <div class="param-input-wrap">
+            <input class="param-input" type="number" id="inpDoorHeight" value="2100" min="200" max="4000" step="100">
+            <span class="param-input-unit">мм</span>
+          </div>
+        </div>
+        <div class="hint-box">
+          Сначала смотрите предпросмотр на стене, потом фиксируйте дверь кликом
         </div>
       </div>
 
@@ -602,13 +637,14 @@
           <thead>
             <tr>
               <th>Помещение</th>
-              <th>Пл. м²</th>
-              <th>Об. м³</th>
-              <th>Выч. м²</th>
+              <th>Пол м²</th>
+              <th>Стены м²</th>
+              <th>Периметр м</th>
+              <th>Проёмы м²</th>
             </tr>
           </thead>
           <tbody id="explBody">
-            <tr class="empty-row"><td colspan="4">Нарисуйте стены и нажмите «Пересчитать»</td></tr>
+            <tr class="empty-row"><td colspan="5">Нарисуйте замкнутый контур, чтобы посчитать пол, стены и периметр</td></tr>
           </tbody>
         </table>
       </div>
@@ -624,7 +660,7 @@
   // ─── STATE ────────────────────────────────────────────────────────
   let walls = [];     // {id, x1,y1,x2,y2, thickness, height}
   let openings = [];  // {id, wallId, t, width, height, type}
-  let rooms = [];     // {polygon, area, volume, openingsArea, name, color}
+  let rooms = [];     // {cells, boundarySegments, area, wallArea, perimeter, openingsArea, center, name}
   let idWall = 1, idOpen = 1;
 
   let tool = 'select';
@@ -638,6 +674,7 @@
   // Wall offset: 'left' | 'center' | 'right'
   // Offset is perpendicular to draw direction
   let wallOffset = 'center';
+  let hoverOpening = null;
 
   let selectedId = null;  // { type: 'wall'|'opening', id }
 
@@ -681,8 +718,12 @@
 
   const inpWallThick = document.getElementById('inpWallThick');
   const inpWallHeight = document.getElementById('inpWallHeight');
-  const inpOpenWidth = document.getElementById('inpOpenWidth');
-  const inpOpenHeight = document.getElementById('inpOpenHeight');
+  const inpWindowWidth = document.getElementById('inpWindowWidth');
+  const inpWindowHeight = document.getElementById('inpWindowHeight');
+  const inpDoorWidth = document.getElementById('inpDoorWidth');
+  const inpDoorHeight = document.getElementById('inpDoorHeight');
+  const windowParams = document.getElementById('windowParams');
+  const doorParams = document.getElementById('doorParams');
 
   // ─── RESIZE ──────────────────────────────────────────────────────
   function resizeCanvas() {
@@ -701,7 +742,7 @@
   function toWorld(sx, sy) {
     return { x: (sx - panX) / scale, y: (sy - panY) / scale };
   }
-  function snap(x, y, forceNoEndpoint) {
+  function snap(x, y, forceNoEndpoint = false) {
     const g = (shiftDown && ctrlDown) ? 1000 : shiftDown ? 100 : 10;
     let sx = Math.round(x / g) * g;
     let sy = Math.round(y / g) * g;
@@ -715,7 +756,107 @@
         }
       }
     }
-    return { x: sx, y: sy };
+    return { x: sx, y: sy, snappedToEndpoint: false };
+  }
+
+  function updateSnapBadge() {
+    snapBadge.textContent = shiftDown && ctrlDown
+      ? 'Привязка: 1 м'
+      : shiftDown
+        ? 'Привязка: 100 мм'
+        : 'Привязка: 10 мм';
+  }
+
+  function isEditableTarget(target) {
+    return !!target && (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    );
+  }
+
+  function resetDrawingState() {
+    isDrawing = false;
+    chainMode = false;
+    drawStart = null;
+    drawEnd = null;
+    lengthInput = '';
+    lengthMode = false;
+    lengthOverlay.style.display = 'none';
+    lblLen.style.display = 'none';
+  }
+
+  function getToolParams(type) {
+    if (type === 'window') {
+      return {
+        width: Math.max(1, parseFloat(inpWindowWidth.value) || 1200),
+        height: Math.max(1, parseFloat(inpWindowHeight.value) || 1500)
+      };
+    }
+    return {
+      width: Math.max(1, parseFloat(inpDoorWidth.value) || 900),
+      height: Math.max(1, parseFloat(inpDoorHeight.value) || 2100)
+    };
+  }
+
+  function getWallPreviewEnd(world) {
+    let rawEnd = { ...snap(world.x, world.y) };
+
+    if (!shiftDown && drawStart) {
+      const dx = rawEnd.x - drawStart.x;
+      const dy = rawEnd.y - drawStart.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 20) {
+        let angle = Math.atan2(dy, dx);
+        const snapAngles = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+        for (const a of snapAngles) {
+          const diff = Math.abs(angle - a);
+          if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
+            angle = a;
+            rawEnd = {
+              x: drawStart.x + Math.cos(angle) * len,
+              y: drawStart.y + Math.sin(angle) * len
+            };
+            break;
+          }
+        }
+      }
+    }
+
+    if (lengthMode && lengthInput && drawStart) {
+      const targetLen = parseFloat(lengthInput);
+      if (!isNaN(targetLen) && targetLen > 0) {
+        const dx = rawEnd.x - drawStart.x;
+        const dy = rawEnd.y - drawStart.y;
+        const curLen = Math.hypot(dx, dy);
+        if (curLen > 0.1) {
+          rawEnd = {
+            x: drawStart.x + (dx / curLen) * targetLen,
+            y: drawStart.y + (dy / curLen) * targetLen
+          };
+        }
+      }
+    }
+
+    rawEnd.snappedToEndpoint = snap(world.x, world.y).snappedToEndpoint;
+    return rawEnd;
+  }
+
+  function finalizeWall(end) {
+    if (!drawStart) return false;
+    const len = Math.hypot(end.x - drawStart.x, end.y - drawStart.y);
+    if (len <= 20) return false;
+
+    addWall(drawStart, end);
+    computeRooms();
+    drawStart = { x: end.x, y: end.y };
+    drawEnd = { x: end.x, y: end.y };
+    lengthInput = '';
+    lengthMode = false;
+    chainMode = true;
+    isDrawing = true;
+    redraw();
+    return true;
   }
 
   function applyWallOffset(cx, cy, angle, offset, thickness) {
@@ -733,6 +874,7 @@
     drawRoomFills();
     drawWalls();
     drawOpenings();
+    if (hoverOpening) drawHoverOpening();
     if (isDrawing && drawStart && drawEnd) drawTempWall();
   }
 
@@ -791,28 +933,29 @@
       const r = rooms[i];
       const color = ROOM_COLORS[i % ROOM_COLORS.length];
       const strokeColor = ROOM_STROKES[i % ROOM_STROKES.length];
-      // draw polygon
-      if (!r.polygon || r.polygon.length < 4) continue;
+      if (!r.cells || !r.cells.length) continue;
       ctx.save();
       ctx.beginPath();
-      const p0 = toScreen(r.polygon[0].x, r.polygon[0].y);
-      ctx.moveTo(p0.x, p0.y);
-      for (let j = 1; j < r.polygon.length; j++) {
-        const p = toScreen(r.polygon[j].x, r.polygon[j].y);
-        ctx.lineTo(p.x, p.y);
+      for (const cell of r.cells) {
+        const p = toScreen(cell.x1, cell.y1);
+        ctx.rect(p.x, p.y, (cell.x2 - cell.x1) * scale, (cell.y2 - cell.y1) * scale);
       }
-      ctx.closePath();
       ctx.fillStyle = color;
       ctx.fill();
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 3]);
-      ctx.stroke();
+      for (const seg of r.boundarySegments) {
+        const p1 = toScreen(seg.x1, seg.y1);
+        const p2 = toScreen(seg.x2, seg.y2);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
       ctx.setLineDash([]);
-      // room label
-      const cx = (Math.min(...r.polygon.map(p=>p.x)) + Math.max(...r.polygon.map(p=>p.x))) / 2;
-      const cy = (Math.min(...r.polygon.map(p=>p.y)) + Math.max(...r.polygon.map(p=>p.y))) / 2;
-      const sc = toScreen(cx, cy);
+
+      const sc = toScreen(r.center.x, r.center.y);
       ctx.fillStyle = strokeColor.replace('0.4', '0.9');
       ctx.font = `600 ${Math.max(10, Math.min(14, scale * 200))}px Inter, sans-serif`;
       ctx.textAlign = 'center';
@@ -870,77 +1013,90 @@
     for (const op of openings) {
       const wall = walls.find(w => w.id === op.wallId);
       if (!wall) continue;
-      const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-      const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
-      const halfW = op.width / 2;
-      const t1 = op.t - halfW / wlen;
-      const t2 = op.t + halfW / wlen;
-      const ax1 = wall.x1 + (wall.x2 - wall.x1) * t1;
-      const ay1 = wall.y1 + (wall.y2 - wall.y1) * t1;
-      const ax2 = wall.x1 + (wall.x2 - wall.x1) * t2;
-      const ay2 = wall.y1 + (wall.y2 - wall.y1) * t2;
-      const p1 = toScreen(ax1, ay1);
-      const p2 = toScreen(ax2, ay2);
-      const halfT = (wall.thickness / 2) * scale;
-      const dx = -Math.sin(angle) * halfT;
-      const dy = Math.cos(angle) * halfT;
-
-      const isSelected = selectedId && selectedId.type === 'opening' && selectedId.id === op.id;
-      const color = op.type === 'window' ? '#2563eb' : '#d97706';
-      const fillColor = op.type === 'window' ? '#dbeafe' : '#fef3c7';
-
-      ctx.save();
-      // white cutout on wall
-      ctx.beginPath();
-      ctx.moveTo(p1.x + dx, p1.y + dy);
-      ctx.lineTo(p2.x + dx, p2.y + dy);
-      ctx.lineTo(p2.x - dx, p2.y - dy);
-      ctx.lineTo(p1.x - dx, p1.y - dy);
-      ctx.closePath();
-      ctx.fillStyle = '#ffffff';
-      ctx.fill();
-
-      // opening fill
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-
-      if (op.type === 'window') {
-        // window: 3 lines across
-        ctx.strokeStyle = color;
-        ctx.lineWidth = isSelected ? 2 : 1.5;
-        // outer border
-        ctx.strokeRect
-          ? ctx.stroke()
-          : ctx.stroke();
-        ctx.stroke();
-        // cross lines
-        for (let t = 0.25; t <= 0.75; t += 0.25) {
-          const mx = p1.x + (p2.x - p1.x) * t;
-          const my = p1.y + (p2.y - p1.y) * t;
-          ctx.beginPath();
-          ctx.moveTo(mx + dx, my + dy);
-          ctx.lineTo(mx - dx, my - dy);
-          ctx.stroke();
-        }
-      } else {
-        // door: arc swing
-        ctx.strokeStyle = color;
-        ctx.lineWidth = isSelected ? 2 : 1.5;
-        ctx.stroke();
-        // arc
-        const cx = p1.x, cy = p1.y;
-        const r = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        const startAngle = Math.atan2(p2.y - cy, p2.x - cx);
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, startAngle, startAngle - Math.PI/2, true);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-      ctx.restore();
+      drawOpening(op, wall, false);
     }
+  }
+
+  function drawOpening(op, wall, isHover) {
+    const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+    if (wlen < 1) return;
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const halfW = op.width / 2;
+    const t1 = Math.max(0, Math.min(1, op.t - halfW / wlen));
+    const t2 = Math.max(0, Math.min(1, op.t + halfW / wlen));
+    const ax1 = wall.x1 + (wall.x2 - wall.x1) * t1;
+    const ay1 = wall.y1 + (wall.y2 - wall.y1) * t1;
+    const ax2 = wall.x1 + (wall.x2 - wall.x1) * t2;
+    const ay2 = wall.y1 + (wall.y2 - wall.y1) * t2;
+    const p1 = toScreen(ax1, ay1);
+    const p2 = toScreen(ax2, ay2);
+    const halfT = (wall.thickness / 2) * scale;
+    const dx = -Math.sin(angle) * halfT;
+    const dy = Math.cos(angle) * halfT;
+
+    const isSelected = !isHover && selectedId && selectedId.type === 'opening' && selectedId.id === op.id;
+    const color = op.type === 'window' ? '#2563eb' : '#d97706';
+    const fillColor = op.type === 'window'
+      ? (isHover ? 'rgba(37,99,235,0.25)' : '#dbeafe')
+      : (isHover ? 'rgba(217,119,6,0.25)' : '#fef3c7');
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(p1.x + dx, p1.y + dy);
+    ctx.lineTo(p2.x + dx, p2.y + dy);
+    ctx.lineTo(p2.x - dx, p2.y - dy);
+    ctx.lineTo(p1.x - dx, p1.y - dy);
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isSelected ? 2 : 1.5;
+    ctx.stroke();
+
+    if (op.type === 'window') {
+      for (let t = 0.25; t <= 0.75; t += 0.25) {
+        const mx = p1.x + (p2.x - p1.x) * t;
+        const my = p1.y + (p2.y - p1.y) * t;
+        ctx.beginPath();
+        ctx.moveTo(mx + dx, my + dy);
+        ctx.lineTo(mx - dx, my - dy);
+        ctx.stroke();
+      }
+    } else {
+      const cx = p1.x;
+      const cy = p1.y;
+      const r = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const startAngle = Math.atan2(p2.y - cy, p2.x - cx);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, startAngle, startAngle - Math.PI / 2, true);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    if (isHover) {
+      const distLeft = op.t * wlen - op.width / 2;
+      const distRight = wlen - (op.t * wlen + op.width / 2);
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const perpX = -Math.sin(angle) * (halfT + 12);
+      const perpY = Math.cos(angle) * (halfT + 12);
+      ctx.font = '500 10px Inter, sans-serif';
+      ctx.fillStyle = '#1e293b';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${Math.round(distLeft)} мм ← ${op.width} мм → ${Math.round(distRight)} мм`, midX + perpX, midY + perpY - 4);
+    }
+    ctx.restore();
+  }
+
+  function drawHoverOpening() {
+    if (!hoverOpening) return;
+    drawOpening(hoverOpening, hoverOpening.wall, true);
   }
 
   function drawTempWall() {
@@ -987,9 +1143,6 @@
     ctx.setLineDash([]);
 
     // start point dot
-    const snappedEnd = snap(toWorld(ps2.x, ps2.y).x, toWorld(ps2.x, ps2.y).y);
-    const isSnapEnd = drawEnd && drawEnd.snappedToEndpoint;
-
     // start anchor (chain point)
     ctx.beginPath();
     ctx.arc(ps1.x, ps1.y, chainMode ? 6 : 4, 0, Math.PI*2);
@@ -1050,19 +1203,19 @@
   // ─── TOOL SELECTION ──────────────────────────────────────────────
   function setTool(t) {
     tool = t;
-    // break chain if switching away from wall
     if (t !== 'wall') {
-      isDrawing = false; chainMode = false; drawStart = null; drawEnd = null;
-      lengthInput = ''; lengthMode = false;
-      lengthOverlay.style.display = 'none';
-      lblLen.style.display = 'none';
+      resetDrawingState();
     }
+    hoverOpening = null;
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('tool' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('active');
     const labels = { select: 'Выбор', wall: 'Стена', window: 'Окно', door: 'Дверь' };
     lblTool.textContent = labels[t] || t;
     canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
+    windowParams.classList.toggle('active', t === 'window');
+    doorParams.classList.toggle('active', t === 'door');
     if (t !== 'select') clearSelection();
+    redraw();
   }
   document.querySelectorAll('.tool-btn').forEach(b => {
     b.addEventListener('click', () => setTool(b.dataset.tool));
@@ -1145,33 +1298,25 @@
     }
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
-    const snapped = snap(world.x, world.y);
-
     if (tool === 'wall') {
-      if (isDrawing && chainMode) {
-        // Already chaining: this mousedown starts dragging from the chained point
-        // drawStart is already set — just reset drawEnd to current cursor
-        const pos2 = getCanvasPos(e);
-        const w2 = toWorld(pos2.x, pos2.y);
-        drawEnd = { ...snap(w2.x, w2.y) };
-        redraw();
-      } else {
-        // Fresh start
+      if (!isDrawing) {
+        const snapped = snap(world.x, world.y);
         isDrawing = true;
         chainMode = false;
         drawStart = { x: snapped.x, y: snapped.y };
-        drawEnd = { x: snapped.x, y: snapped.y };
+        drawEnd = { x: snapped.x, y: snapped.y, snappedToEndpoint: snapped.snappedToEndpoint };
         lengthInput = '';
         lengthMode = false;
         redraw();
+      } else {
+        const end = getWallPreviewEnd(world);
+        finalizeWall(end);
       }
     } else if (tool === 'window' || tool === 'door') {
-      const hit = findClosestWall(world.x, world.y);
-      if (hit) {
-        const w = parseFloat(inpOpenWidth.value) || 900;
-        const h = tool === 'door' ? (parseFloat(inpOpenHeight.value) || 2000) : (parseFloat(inpOpenHeight.value) || 1500);
-        addOpening(hit.wall, hit.t, w, h, tool);
+      if (hoverOpening) {
+        addOpening(hoverOpening.wall, hoverOpening.t, hoverOpening.width, hoverOpening.height, tool);
         computeRooms();
+        redraw();
       }
     } else if (tool === 'select') {
       const hitWall = findClosestWallSel(world.x, world.y);
@@ -1192,30 +1337,27 @@
 
     const pos = getCanvasPos(e);
     const world = toWorld(pos.x, pos.y);
-    const snapped = snap(world.x, world.y);
     lblCoords.textContent = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм`;
 
-    if (isDrawing && tool === 'wall' && drawStart) {
-      let end = { ...snapped };
-
-      if (lengthMode && lengthInput) {
-        const targetLen = parseFloat(lengthInput);
-        if (!isNaN(targetLen) && targetLen > 0) {
-          const dx = end.x - drawStart.x;
-          const dy = end.y - drawStart.y;
-          const curLen = Math.hypot(dx, dy);
-          if (curLen > 0.1) {
-            end = {
-              x: drawStart.x + (dx / curLen) * targetLen,
-              y: drawStart.y + (dy / curLen) * targetLen
-            };
-          }
-        }
+    if (tool === 'window' || tool === 'door') {
+      const hit = findClosestWall(world.x, world.y);
+      if (hit) {
+        const params = getToolParams(tool);
+        const wallLen = Math.hypot(hit.wall.x2 - hit.wall.x1, hit.wall.y2 - hit.wall.y1);
+        hoverOpening = wallLen > params.width + 1
+          ? { wall: hit.wall, t: hit.t, width: params.width, height: params.height, type: tool }
+          : null;
+      } else {
+        hoverOpening = null;
       }
+      redraw();
+    } else if (hoverOpening) {
+      hoverOpening = null;
+      redraw();
+    }
 
-      // carry endpoint snap flag for visual feedback
-      end.snappedToEndpoint = snapped.snappedToEndpoint || false;
-      drawEnd = end;
+    if (isDrawing && tool === 'wall' && drawStart) {
+      drawEnd = getWallPreviewEnd(world);
       redraw();
     }
 
@@ -1244,51 +1386,7 @@
     if (isPanning) {
       isPanning = false;
       canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
-      return;
-    }
-    if (isDrawing && tool === 'wall' && drawStart) {
-      let end = drawEnd || drawStart;
-
-      if (lengthMode && lengthInput) {
-        const targetLen = parseFloat(lengthInput);
-        if (!isNaN(targetLen) && targetLen > 0) {
-          const dx = end.x - drawStart.x;
-          const dy = end.y - drawStart.y;
-          const curLen = Math.hypot(dx, dy);
-          if (curLen > 0.1) {
-            end = {
-              x: drawStart.x + (dx / curLen) * targetLen,
-              y: drawStart.y + (dy / curLen) * targetLen
-            };
-          }
-        }
-      }
-
-      const len = Math.hypot(end.x - drawStart.x, end.y - drawStart.y);
-      if (len > 20) {
-        addWall(drawStart, end);
-        computeRooms();
-        // ── CHAIN MODE: immediately start next wall from the endpoint ──
-        drawStart = { x: end.x, y: end.y };
-        drawEnd = { x: end.x, y: end.y };
-        lengthInput = '';
-        lengthMode = false;
-        chainMode = true;
-        // isDrawing stays TRUE — next mousedown places next wall
-        redraw();
-      } else {
-        // too short: cancel
-        if (!chainMode) {
-          isDrawing = false;
-          drawStart = null;
-          drawEnd = null;
-        }
-        lengthInput = '';
-        lengthMode = false;
-        lengthOverlay.style.display = 'none';
-        lblLen.style.display = 'none';
-        redraw();
-      }
+      redraw();
     }
   }
 
@@ -1305,27 +1403,28 @@
 
   // ─── KEYBOARD ────────────────────────────────────────────────────
   window.addEventListener('keydown', e => {
+    const targetIsEditable = isEditableTarget(e.target);
+
     if (e.key === 'Shift') {
       shiftDown = true;
-      snapBadge.textContent = ctrlDown ? 'Привязка: 1 м' : 'Привязка: 100 мм';
+      updateSnapBadge();
     }
     if (e.key === 'Control') {
       ctrlDown = true;
-      if (shiftDown) snapBadge.textContent = 'Привязка: 1 м';
+      updateSnapBadge();
     }
 
     if (e.key === 'Escape') {
       if (isDrawing) {
-        isDrawing = false; chainMode = false; drawStart = null; drawEnd = null;
-        lengthInput = ''; lengthMode = false;
-        lengthOverlay.style.display = 'none';
-        lblLen.style.display = 'none';
+        resetDrawingState();
         redraw();
       }
       clearSelection();
+      hoverOpening = null;
+      redraw();
     }
 
-    if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (!targetIsEditable && (e.key === 'Delete' || e.key === 'Backspace')) {
       if (selectedId) {
         document.getElementById('btnDeleteSelected').click();
         e.preventDefault();
@@ -1333,7 +1432,7 @@
     }
 
     // Number input during drawing
-    if (isDrawing && tool === 'wall') {
+    if (!targetIsEditable && isDrawing && tool === 'wall') {
       if (/^[0-9]$/.test(e.key)) {
         lengthMode = true;
         lengthInput += e.key;
@@ -1345,23 +1444,11 @@
         e.preventDefault();
         redraw();
       } else if (e.key === 'Enter' && lengthMode && lengthInput) {
-        // confirm length, place wall, continue chain
         const targetLen = parseFloat(lengthInput);
         if (!isNaN(targetLen) && targetLen > 0 && drawEnd && drawStart) {
-          const dx = drawEnd.x - drawStart.x;
-          const dy = drawEnd.y - drawStart.y;
-          const curLen = Math.hypot(dx, dy);
-          if (curLen > 0.1) {
-            const finalEnd = {
-              x: drawStart.x + (dx / curLen) * targetLen,
-              y: drawStart.y + (dy / curLen) * targetLen
-            };
-            addWall(drawStart, finalEnd);
-            computeRooms();
-            // chain: next wall from finalEnd
-            drawStart = { x: finalEnd.x, y: finalEnd.y };
-            drawEnd = { x: finalEnd.x, y: finalEnd.y };
-            chainMode = true;
+          const end = getWallPreviewEnd(drawEnd);
+          if (!finalizeWall(end)) {
+            redraw();
           }
         }
         lengthInput = ''; lengthMode = false;
@@ -1371,7 +1458,7 @@
     }
 
     // Shortcuts
-    if (!e.ctrlKey && !e.metaKey) {
+    if (!targetIsEditable && !e.ctrlKey && !e.metaKey) {
       if (e.key === 'v' || e.key === 'V') setTool('select');
       if (e.key === 'w' || e.key === 'W') setTool('wall');
       if (e.key === 'o' || e.key === 'O') setTool('window');
@@ -1382,11 +1469,11 @@
   window.addEventListener('keyup', e => {
     if (e.key === 'Shift') {
       shiftDown = false;
-      snapBadge.textContent = ctrlDown ? 'Привязка: 100 мм' : 'Привязка: 10 мм';
+      updateSnapBadge();
     }
     if (e.key === 'Control') {
       ctrlDown = false;
-      snapBadge.textContent = shiftDown ? 'Привязка: 100 мм' : 'Привязка: 10 мм';
+      updateSnapBadge();
     }
   });
 
@@ -1418,9 +1505,11 @@
 
   function addOpening(wall, t, width, height, type) {
     const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-    let tc = Math.min(1 - width/2/wlen, Math.max(width/2/wlen, t));
+    if (wlen <= width) return false;
+    let tc = Math.min(1 - width / 2 / wlen, Math.max(width / 2 / wlen, t));
     openings.push({ id: idOpen++, wallId: wall.id, t: tc, width, height, type });
     redraw();
+    return true;
   }
 
   function findClosestWall(wx, wy) {
@@ -1465,131 +1554,214 @@
   // ─── ROOM DETECTION ──────────────────────────────────────────────
   function computeRooms() {
     rooms = [];
-    if (walls.length < 2) { updateExpl(); return; }
-
     const eps = 2;
-    // collect unique X, Y of wall endpoints
-    let xs = new Set(), ys = new Set();
-    for (const w of walls) {
-      xs.add(Math.round(w.x1)); xs.add(Math.round(w.x2));
-      ys.add(Math.round(w.y1)); ys.add(Math.round(w.y2));
-    }
-    const xList = [...xs].sort((a,b)=>a-b);
-    const yList = [...ys].sort((a,b)=>a-b);
-    if (xList.length < 2 || yList.length < 2) { updateExpl(); return; }
+    const axisWalls = walls.filter(w => Math.abs(w.y1 - w.y2) < eps || Math.abs(w.x1 - w.x2) < eps);
+    if (axisWalls.length < 3) { updateExpl(); redraw(); return; }
 
-    // build edge sets
+    const xs = new Set();
+    const ys = new Set();
+    for (const w of axisWalls) {
+      xs.add(Math.round(w.x1));
+      xs.add(Math.round(w.x2));
+      ys.add(Math.round(w.y1));
+      ys.add(Math.round(w.y2));
+    }
+
+    const xList = [...xs].sort((a, b) => a - b);
+    const yList = [...ys].sort((a, b) => a - b);
+    if (xList.length < 2 || yList.length < 2) { updateExpl(); redraw(); return; }
+
     const horizEdges = new Set();
     const vertEdges = new Set();
-    for (const w of walls) {
+    for (const w of axisWalls) {
       if (Math.abs(w.y1 - w.y2) < eps) {
-        // horizontal
         const yIdx = yList.findIndex(v => Math.abs(v - w.y1) < eps);
         if (yIdx < 0) continue;
-        const xmin = Math.min(w.x1,w.x2), xmax = Math.max(w.x1,w.x2);
+        const xmin = Math.min(w.x1, w.x2);
+        const xmax = Math.max(w.x1, w.x2);
         for (let i = 0; i < xList.length - 1; i++) {
-          if (xList[i] >= xmin - eps && xList[i+1] <= xmax + eps)
+          if (xList[i] >= xmin - eps && xList[i + 1] <= xmax + eps) {
             horizEdges.add(`${yIdx},${i}`);
+          }
         }
-      } else if (Math.abs(w.x1 - w.x2) < eps) {
-        // vertical
+      } else {
         const xIdx = xList.findIndex(v => Math.abs(v - w.x1) < eps);
         if (xIdx < 0) continue;
-        const ymin = Math.min(w.y1,w.y2), ymax = Math.max(w.y1,w.y2);
+        const ymin = Math.min(w.y1, w.y2);
+        const ymax = Math.max(w.y1, w.y2);
         for (let j = 0; j < yList.length - 1; j++) {
-          if (yList[j] >= ymin - eps && yList[j+1] <= ymax + eps)
+          if (yList[j] >= ymin - eps && yList[j + 1] <= ymax + eps) {
             vertEdges.add(`${xIdx},${j}`);
+          }
         }
       }
     }
 
-    const rows = yList.length - 1, cols = xList.length - 1;
-    const visited = Array.from({length:rows}, () => new Array(cols).fill(false));
+    const rows = yList.length - 1;
+    const cols = xList.length - 1;
+    const visited = Array.from({ length: rows }, () => new Array(cols).fill(false));
+
+    function cellKey(cy, cx) {
+      return `${cy},${cx}`;
+    }
+
+    function boundaryEdgeForCell(cy, cx, dir) {
+      if (dir === 'top') {
+        return { orientation: 'h', x1: xList[cx], y1: yList[cy], x2: xList[cx + 1], y2: yList[cy], edgeKey: `${cy},${cx}` };
+      }
+      if (dir === 'bottom') {
+        return { orientation: 'h', x1: xList[cx], y1: yList[cy + 1], x2: xList[cx + 1], y2: yList[cy + 1], edgeKey: `${cy + 1},${cx}` };
+      }
+      if (dir === 'left') {
+        return { orientation: 'v', x1: xList[cx], y1: yList[cy], x2: xList[cx], y2: yList[cy + 1], edgeKey: `${cx},${cy}` };
+      }
+      return { orientation: 'v', x1: xList[cx + 1], y1: yList[cy], x2: xList[cx + 1], y2: yList[cy + 1], edgeKey: `${cx + 1},${cy}` };
+    }
+
+    function rangesOverlap(a1, a2, b1, b2) {
+      return Math.max(Math.min(a1, a2), Math.min(b1, b2)) < Math.min(Math.max(a1, a2), Math.max(b1, b2)) + eps;
+    }
+
+    function findWallForSegment(seg) {
+      return axisWalls.find(w => {
+        if (seg.orientation === 'h') {
+          return Math.abs(w.y1 - w.y2) < eps &&
+            Math.abs(w.y1 - seg.y1) < eps &&
+            rangesOverlap(seg.x1, seg.x2, w.x1, w.x2);
+        }
+        return Math.abs(w.x1 - w.x2) < eps &&
+          Math.abs(w.x1 - seg.x1) < eps &&
+          rangesOverlap(seg.y1, seg.y2, w.y1, w.y2);
+      }) || null;
+    }
+
+    function openingTouchesRoom(op, segments) {
+      const wall = walls.find(w => w.id === op.wallId);
+      if (!wall) return false;
+      const wallSegments = segments.filter(seg => seg.wall && seg.wall.id === op.wallId);
+      if (!wallSegments.length) return false;
+
+      const wallLen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+      const halfOpen = op.width / 2;
+      const startX = wall.x1 + (wall.x2 - wall.x1) * (op.t - halfOpen / wallLen);
+      const startY = wall.y1 + (wall.y2 - wall.y1) * (op.t - halfOpen / wallLen);
+      const endX = wall.x1 + (wall.x2 - wall.x1) * (op.t + halfOpen / wallLen);
+      const endY = wall.y1 + (wall.y2 - wall.y1) * (op.t + halfOpen / wallLen);
+
+      return wallSegments.some(seg => seg.orientation === 'h'
+        ? rangesOverlap(startX, endX, seg.x1, seg.x2)
+        : rangesOverlap(startY, endY, seg.y1, seg.y2));
+    }
 
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < cols; j++) {
         if (visited[i][j]) continue;
-        const queue = [[i,j]];
-        const cells = [];
+
+        const queue = [[i, j]];
+        const region = [];
+        const regionSet = new Set();
         visited[i][j] = true;
+
         while (queue.length) {
-          const [cy,cx] = queue.shift();
-          cells.push([cy,cx]);
-          if (cy>0 && !visited[cy-1][cx] && !horizEdges.has(`${cy},${cx}`)) { visited[cy-1][cx]=true; queue.push([cy-1,cx]); }
-          if (cy<rows-1 && !visited[cy+1][cx] && !horizEdges.has(`${cy+1},${cx}`)) { visited[cy+1][cx]=true; queue.push([cy+1,cx]); }
-          if (cx>0 && !visited[cy][cx-1] && !vertEdges.has(`${cx},${cy}`)) { visited[cy][cx-1]=true; queue.push([cy,cx-1]); }
-          if (cx<cols-1 && !visited[cy][cx+1] && !vertEdges.has(`${cx+1},${cy}`)) { visited[cy][cx+1]=true; queue.push([cy,cx+1]); }
-        }
-        if (!cells.length) continue;
-        const allX = cells.flatMap(([,cx]) => [xList[cx], xList[cx+1]]);
-        const allY = cells.flatMap(([cy]) => [yList[cy], yList[cy+1]]);
-        const minX = Math.min(...allX), maxX = Math.max(...allX);
-        const minY = Math.min(...allY), maxY = Math.max(...allY);
-        const area = (maxX - minX) * (maxY - minY) / 1e6;
-        if (area < 0.05) continue;
+          const [cy, cx] = queue.shift();
+          region.push([cy, cx]);
+          regionSet.add(cellKey(cy, cx));
 
-        // ── STRICT: every exterior edge of this room group must be a wall ──
-        // For each cell on the outer boundary, check if the exposed edge has a wall
-        let fullyEnclosed = true;
-        for (const [cy, cx] of cells) {
-          // top edge of cell at cy: horizEdge key is `${cy},${cx}`
-          if (cy === 0 || !cells.some(([r2,c2]) => r2===cy-1 && c2===cx)) {
-            if (!horizEdges.has(`${cy},${cx}`)) { fullyEnclosed = false; break; }
+          if (cy > 0 && !visited[cy - 1][cx] && !horizEdges.has(`${cy},${cx}`)) {
+            visited[cy - 1][cx] = true;
+            queue.push([cy - 1, cx]);
           }
-          // bottom
-          if (cy === rows-1 || !cells.some(([r2,c2]) => r2===cy+1 && c2===cx)) {
-            if (!horizEdges.has(`${cy+1},${cx}`)) { fullyEnclosed = false; break; }
+          if (cy < rows - 1 && !visited[cy + 1][cx] && !horizEdges.has(`${cy + 1},${cx}`)) {
+            visited[cy + 1][cx] = true;
+            queue.push([cy + 1, cx]);
           }
-          // left
-          if (cx === 0 || !cells.some(([r2,c2]) => r2===cy && c2===cx-1)) {
-            if (!vertEdges.has(`${cx},${cy}`)) { fullyEnclosed = false; break; }
+          if (cx > 0 && !visited[cy][cx - 1] && !vertEdges.has(`${cx},${cy}`)) {
+            visited[cy][cx - 1] = true;
+            queue.push([cy, cx - 1]);
           }
-          // right
-          if (cx === cols-1 || !cells.some(([r2,c2]) => r2===cy && c2===cx+1)) {
-            if (!vertEdges.has(`${cx+1},${cy}`)) { fullyEnclosed = false; break; }
-          }
-        }
-        if (!fullyEnclosed) continue;
-
-        // compute boundary walls
-        const boundWallIds = new Set();
-        for (const w of walls) {
-          const isHoriz = Math.abs(w.y1-w.y2) < eps;
-          const isVert = Math.abs(w.x1-w.x2) < eps;
-          if (isHoriz) {
-            const wy = w.y1;
-            if ((Math.abs(wy-minY) < eps || Math.abs(wy-maxY) < eps) &&
-                Math.max(w.x1,w.x2) > minX + eps && Math.min(w.x1,w.x2) < maxX - eps)
-              boundWallIds.add(w.id);
-          } else if (isVert) {
-            const wx = w.x1;
-            if ((Math.abs(wx-minX) < eps || Math.abs(wx-maxX) < eps) &&
-                Math.max(w.y1,w.y2) > minY + eps && Math.min(w.y1,w.y2) < maxY - eps)
-              boundWallIds.add(w.id);
+          if (cx < cols - 1 && !visited[cy][cx + 1] && !vertEdges.has(`${cx + 1},${cy}`)) {
+            visited[cy][cx + 1] = true;
+            queue.push([cy, cx + 1]);
           }
         }
 
-        // sum opening areas on boundary walls
-        let openArea = 0;
+        if (!region.length) continue;
+
+        const boundarySegments = [];
+        let enclosed = true;
+        let areaMm2 = 0;
+        let weightedX = 0;
+        let weightedY = 0;
+        const cells = [];
+
+        for (const [cy, cx] of region) {
+          const cellArea = (xList[cx + 1] - xList[cx]) * (yList[cy + 1] - yList[cy]);
+          areaMm2 += cellArea;
+          const midX = (xList[cx] + xList[cx + 1]) / 2;
+          const midY = (yList[cy] + yList[cy + 1]) / 2;
+          weightedX += midX * cellArea;
+          weightedY += midY * cellArea;
+          cells.push({ x1: xList[cx], y1: yList[cy], x2: xList[cx + 1], y2: yList[cy + 1] });
+
+          const neighbors = [
+            { dir: 'top', exists: regionSet.has(cellKey(cy - 1, cx)), wallSet: horizEdges },
+            { dir: 'bottom', exists: regionSet.has(cellKey(cy + 1, cx)), wallSet: horizEdges },
+            { dir: 'left', exists: regionSet.has(cellKey(cy, cx - 1)), wallSet: vertEdges },
+            { dir: 'right', exists: regionSet.has(cellKey(cy, cx + 1)), wallSet: vertEdges }
+          ];
+
+          for (const neighbor of neighbors) {
+            if (neighbor.exists) continue;
+            const seg = boundaryEdgeForCell(cy, cx, neighbor.dir);
+            if (!neighbor.wallSet.has(seg.edgeKey)) {
+              enclosed = false;
+              break;
+            }
+            seg.length = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+            seg.wall = findWallForSegment(seg);
+            boundarySegments.push(seg);
+          }
+
+          if (!enclosed) break;
+        }
+
+        if (!enclosed || areaMm2 < 50000) continue;
+
+        const centroid = { x: weightedX / areaMm2, y: weightedY / areaMm2 };
+        const center = cells.reduce((best, cell) => {
+          const cellCenter = { x: (cell.x1 + cell.x2) / 2, y: (cell.y1 + cell.y2) / 2 };
+          const dist = Math.hypot(cellCenter.x - centroid.x, cellCenter.y - centroid.y);
+          return !best || dist < best.dist ? { ...cellCenter, dist } : best;
+        }, null);
+
+        let grossWallArea = 0;
+        let perimeter = 0;
+        for (const seg of boundarySegments) {
+          perimeter += seg.length;
+          const wallHeight = seg.wall ? seg.wall.height : (parseFloat(inpWallHeight.value) || 2700);
+          grossWallArea += seg.length * wallHeight / 1e6;
+        }
+
+        let openingsArea = 0;
         for (const op of openings) {
-          if (boundWallIds.has(op.wallId)) {
-            openArea += (op.width * op.height) / 1e6;
+          if (openingTouchesRoom(op, boundarySegments)) {
+            openingsArea += (op.width * op.height) / 1e6;
           }
         }
-
-        const wallH = walls.find(w => boundWallIds.has(w.id))?.height || parseFloat(inpWallHeight.value) || 2700;
-        const volume = Math.max(0, area * (wallH/1000) - openArea * (wallH/1000));
 
         rooms.push({
-          polygon: [
-            {x:minX,y:minY},{x:maxX,y:minY},
-            {x:maxX,y:maxY},{x:minX,y:maxY}
-          ],
-          area, volume, openingsArea: openArea,
-          name: `Комната ${rooms.length+1}`
+          cells,
+          boundarySegments,
+          area: areaMm2 / 1e6,
+          wallArea: Math.max(0, grossWallArea - openingsArea),
+          perimeter: perimeter / 1000,
+          openingsArea,
+          center: { x: center.x, y: center.y },
+          name: `Комната ${rooms.length + 1}`
         });
       }
     }
+
     updateExpl();
     redraw();
   }
@@ -1597,7 +1769,7 @@
   function updateExpl() {
     roomCount.textContent = rooms.length;
     if (!rooms.length) {
-      explBody.innerHTML = '<tr class="empty-row"><td colspan="4">Нарисуйте стены и нажмите «Пересчитать»</td></tr>';
+      explBody.innerHTML = '<tr class="empty-row"><td colspan="5">Нарисуйте замкнутый контур, чтобы посчитать пол, стены и периметр</td></tr>';
       return;
     }
     explBody.innerHTML = rooms.map((r, i) => {
@@ -1605,7 +1777,8 @@
       return `<tr>
         <td><span class="room-dot" style="background:${color}"></span>${r.name}</td>
         <td>${r.area.toFixed(2)}</td>
-        <td>${r.volume.toFixed(2)}</td>
+        <td>${r.wallArea.toFixed(2)}</td>
+        <td>${r.perimeter.toFixed(2)}</td>
         <td>${r.openingsArea.toFixed(2)}</td>
       </tr>`;
     }).join('');
@@ -1615,6 +1788,8 @@
   document.getElementById('btnNew').addEventListener('click', () => {
     if (!confirm('Создать новый проект? Текущий чертёж будет очищен.')) return;
     walls = []; openings = []; rooms = []; idWall = 1; idOpen = 1;
+    hoverOpening = null;
+    resetDrawingState();
     clearSelection();
     updateExpl();
     redraw();
@@ -1636,15 +1811,17 @@
   });
 
   // input changes
-  [inpWallThick, inpWallHeight, inpOpenWidth, inpOpenHeight].forEach(inp => {
-    inp.addEventListener('change', computeRooms);
+  [inpWallThick, inpWallHeight, inpWindowWidth, inpWindowHeight, inpDoorWidth, inpDoorHeight].forEach(inp => {
+    inp.addEventListener('change', () => {
+      computeRooms();
+      redraw();
+    });
     inp.addEventListener('focus', e => e.target.select());
   });
 
   // ─── INIT ─────────────────────────────────────────────────────────
   setTool('select');
-  snapBadge.textContent = 'Привязка: 10 мм';
-  // set default offset to center
+  updateSnapBadge();
   wallOffset = 'center';
   document.querySelectorAll('.offset-btn').forEach(b => b.classList.remove('active'));
   const centerBtn = document.querySelector('.offset-btn[data-offset="center"]');
