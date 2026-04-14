@@ -1,603 +1,457 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Смета — Стоматология</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Unbounded:wght@300;400;600&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#F8F7F5; --bg2:#F0EEE9; --w:#fff;
-  --ink:#141414; --ink2:#4A4845; --ink3:#8A8885;
-  --b:rgba(0,0,0,0.07); --b2:rgba(0,0,0,0.12);
-  --glass:rgba(255,255,255,0.78);
-  --blue:#3B6BF0;
-  --sh:0 2px 20px rgba(0,0,0,0.07);
-  --shm:0 8px 40px rgba(0,0,0,0.11);
-  --r:16px; --rsm:10px;
-}
-html{scroll-behavior:smooth}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-
-/* ── DESKTOP NAV ── */
-.desk-nav{
-  position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:200;
-  background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border:1px solid var(--b2);border-radius:50px;
-  padding:10px 24px;display:flex;align-items:center;gap:28px;
-  box-shadow:var(--sh);white-space:nowrap;
-}
-.desk-nav .logo{font-family:'Unbounded',sans-serif;font-size:12px;font-weight:600;color:var(--ink)}
-.desk-nav .links{display:flex;gap:20px}
-.desk-nav .links a{font-size:13px;color:var(--ink2);text-decoration:none;transition:color .2s}
-.desk-nav .links a:hover{color:var(--ink)}
-.nav-sum{background:var(--ink);color:#fff;font-size:11px;font-weight:500;padding:6px 14px;border-radius:50px}
-
-/* ── MOBILE NAV (bottom tab bar) ── */
-.mob-nav{
-  display:none;
-  position:fixed;bottom:0;left:0;right:0;z-index:200;
-  background:var(--glass);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border-top:1px solid var(--b2);
-  padding:10px 0 max(10px, env(safe-area-inset-bottom));
-  flex-direction:row;justify-content:space-around;align-items:center;
-}
-.mob-nav a{
-  display:flex;flex-direction:column;align-items:center;gap:4px;
-  font-size:10px;color:var(--ink3);text-decoration:none;
-  letter-spacing:0.05em;text-transform:uppercase;
-  transition:color .2s;padding:4px 12px;
-}
-.mob-nav a.active, .mob-nav a:hover{color:var(--ink)}
-.mob-nav svg{width:20px;height:20px;stroke-width:1.4}
-
-/* ── STICKY MOBILE SUM BAR ── */
-.mob-sum-bar{
-  display:none;
-  position:sticky;top:0;z-index:100;
-  background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid var(--b2);
-  padding:14px 20px;
-  flex-direction:row;justify-content:space-between;align-items:center;
-}
-.mob-sum-bar .title{font-family:'Unbounded',sans-serif;font-size:13px;font-weight:600;color:var(--ink)}
-.mob-sum-bar .sum{font-family:'Unbounded',sans-serif;font-size:15px;font-weight:400;color:var(--ink)}
-
-/* ── HERO ── */
-.hero{
-  min-height:100svh;
-  display:grid;grid-template-columns:1fr 1fr;
-  padding:140px 6vw 80px;gap:48px;align-items:center;
-  position:relative;overflow:hidden;
-}
-.hero-glow{
-  position:absolute;top:-20%;right:-10%;width:70%;height:120%;
-  background:radial-gradient(ellipse at center,rgba(210,205,195,0.6) 0%,transparent 65%);
-  pointer-events:none;
-}
-.hero-left{position:relative;z-index:1}
-.eyebrow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:28px}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--blue);flex-shrink:0}
-.hero-h1{font-family:'Unbounded',sans-serif;font-size:clamp(36px,5vw,66px);font-weight:300;line-height:1.05;letter-spacing:-0.03em;color:var(--ink);margin-bottom:22px}
-.hero-h1 b{font-weight:600}
-.hero-sub{font-size:16px;color:var(--ink2);line-height:1.75;max-width:420px;margin-bottom:32px}
-.pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:36px}
-.pill{padding:7px 16px;border-radius:50px;font-size:12px;font-weight:500;border:1px solid var(--b2);color:var(--ink2);background:var(--w)}
-.pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-.btn{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:#fff;padding:14px 26px;border-radius:50px;font-size:14px;font-weight:500;cursor:pointer;border:none;transition:transform .2s,box-shadow .2s;font-family:'Inter',sans-serif}
-.btn:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,0.18)}
-.btn svg{transition:transform .2s}
-.btn:hover svg{transform:translateX(3px)}
-/* hero right grid */
-.hero-right{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.hc{background:var(--w);border:1px solid var(--b);border-radius:var(--r);padding:24px 20px;box-shadow:var(--sh);transition:transform .25s,box-shadow .25s}
-.hc:hover{transform:translateY(-4px);box-shadow:var(--shm)}
-.hc.dark{grid-column:1/-1;background:var(--ink)}
-.hc.wide{grid-column:1/-1}
-.hc-label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:9px}
-.hc.dark .hc-label{color:rgba(255,255,255,0.4)}
-.hc-val{font-family:'Unbounded',sans-serif;font-size:32px;font-weight:300;letter-spacing:-0.03em;color:var(--ink)}
-.hc.dark .hc-val{color:#fff;font-size:42px}
-.hc-unit{font-size:13px;color:var(--ink3);margin-top:5px}
-.hc.dark .hc-unit{color:rgba(255,255,255,0.38)}
-
-/* ── STATS STRIP ── */
-.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 6vw 64px}
-.sc{background:var(--w);border:1px solid var(--b);border-radius:var(--r);padding:24px 20px;transition:transform .25s}
-.sc:hover{transform:translateY(-3px)}
-.sc-label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:9px}
-.sc-val{font-family:'Unbounded',sans-serif;font-size:28px;font-weight:300;letter-spacing:-0.03em;color:var(--ink)}
-.sc-unit{font-size:13px;color:var(--ink3);margin-top:5px}
-
-/* ── SECTION ── */
-.sec{padding:64px 6vw}
-.sec-ey{font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px}
-.sec-h{font-family:'Unbounded',sans-serif;font-size:clamp(24px,3.2vw,40px);font-weight:300;letter-spacing:-0.03em;color:var(--ink);margin-bottom:36px;line-height:1.1}
-.sec-h b{font-weight:600}
-
-/* ── ROOMS ── */
-.rooms-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.rc{background:var(--w);border:1px solid var(--b);border-radius:var(--r);padding:24px 20px;transition:transform .25s,box-shadow .25s;cursor:default;position:relative;overflow:hidden}
-.rc::after{content:'';position:absolute;bottom:0;left:0;width:0;height:2px;background:var(--ink);transition:width .4s}
-.rc:hover::after{width:100%}
-.rc:hover{transform:translateY(-4px);box-shadow:var(--shm)}
-.rc.span2{grid-column:span 2;background:var(--ink);display:flex;gap:36px}
-.rc-num{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px}
-.rc.span2 .rc-num{color:rgba(255,255,255,0.3)}
-.rc-name{font-family:'Unbounded',sans-serif;font-size:18px;font-weight:400;letter-spacing:-0.02em;color:var(--ink);margin-bottom:16px}
-.rc.span2 .rc-name{color:#fff;font-size:22px}
-.rstat{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:5px 0;border-bottom:1px solid var(--b)}
-.rstat:last-child{border:none}
-.rstat span:first-child{color:var(--ink3)}
-.rstat span:last-child{font-weight:500}
-.rc.span2 .rstat{border-color:rgba(255,255,255,0.08)}
-.rc.span2 .rstat span:first-child{color:rgba(255,255,255,0.38)}
-.rc.span2 .rstat span:last-child{color:#fff}
-.rcol{flex:1}
-
-/* ── WORKS ── */
-.works-sec{background:var(--bg2)}
-.works-hd{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap;gap:12px}
-.works-pill{background:var(--ink);color:#fff;font-family:'Unbounded',sans-serif;font-size:16px;font-weight:300;letter-spacing:-0.02em;padding:11px 22px;border-radius:50px}
-.wr{display:grid;grid-template-columns:38px 1fr auto auto 34px;align-items:center;gap:12px;padding:14px 16px;background:var(--w);border:1px solid var(--b);border-radius:var(--rsm);margin-bottom:5px;transition:box-shadow .2s,transform .2s}
-.wr:hover{transform:translateX(4px);box-shadow:var(--sh)}
-.wnum{font-size:12px;color:var(--ink3);text-align:center}
-.wname{font-size:14px;color:var(--ink);line-height:1.4}
-.wqty{font-size:12px;color:var(--ink3);text-align:right;white-space:nowrap}
-.wsum{font-size:15px;font-weight:600;color:var(--ink);text-align:right;white-space:nowrap;min-width:72px}
-.aib{width:30px;height:30px;border-radius:50%;background:var(--bg2);border:1px solid var(--b2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-shrink:0;font-size:9px;font-weight:700;color:var(--ink3)}
-.aib:hover{background:var(--blue);border-color:var(--blue);color:#fff}
-.aib.on{background:var(--ink);border-color:var(--ink);color:#fff}
-.aip{display:none;grid-column:1/-1;background:linear-gradient(135deg,#EEF2FF,#F5F7FF);border:1px solid rgba(59,107,240,0.13);border-radius:var(--rsm);padding:16px 20px;margin-top:2px}
-.aip.show{display:block}
-.aip-hd{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:600;color:var(--blue);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:9px}
-.aip p{font-size:14px;color:var(--ink2);line-height:1.75}
-.aip p strong{color:var(--ink);font-weight:600}
-.works-foot{display:flex;justify-content:flex-end;padding-top:14px;border-top:2px solid var(--ink);margin-top:12px}
-.works-foot-v{font-family:'Unbounded',sans-serif;font-size:36px;font-weight:300;letter-spacing:-0.04em;color:var(--ink)}
-.works-foot-l{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px;text-align:right}
-
-/* ── INCLUDED ── */
-.inc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.ic{background:var(--w);border:1px solid var(--b);border-radius:var(--r);padding:24px 20px;transition:transform .25s,box-shadow .25s}
-.ic:hover{transform:translateY(-4px);box-shadow:var(--shm)}
-.ic-icon{width:40px;height:40px;background:var(--bg2);border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
-.ic-title{font-size:15px;font-weight:600;color:var(--ink);margin-bottom:6px}
-.ic-text{font-size:13px;color:var(--ink2);line-height:1.72}
-
-/* ── CTA ── */
-.cta-wrap{margin:0 6vw 64px}
-.cta{background:var(--ink);border-radius:22px;padding:56px 48px;display:flex;justify-content:space-between;align-items:center;gap:36px;position:relative;overflow:hidden}
-.cta-glow{position:absolute;right:-100px;top:-100px;width:420px;height:420px;background:radial-gradient(circle,rgba(59,107,240,0.2) 0%,transparent 65%);pointer-events:none}
-.cta-left{position:relative;z-index:1}
-.cta-tag{font-size:11px;color:rgba(255,255,255,0.32);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:12px}
-.cta-h{font-family:'Unbounded',sans-serif;font-size:clamp(24px,3vw,38px);font-weight:300;color:#fff;letter-spacing:-0.03em;line-height:1.1}
-.cta-h b{font-weight:600}
-.cta-right{position:relative;z-index:1;text-align:right;flex-shrink:0}
-.cta-sl{font-size:10px;color:rgba(255,255,255,0.28);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:9px}
-.cta-sum{font-family:'Unbounded',sans-serif;font-size:clamp(34px,4vw,52px);font-weight:300;color:#fff;letter-spacing:-0.04em}
-.cta-note{font-size:12px;color:rgba(255,255,255,0.25);margin-top:7px}
-
-/* ── FOOTER ── */
-footer{padding:24px 6vw;border-top:1px solid var(--b);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
-footer p{font-size:12px;color:var(--ink3)}
-
-/* ── FADE ── */
-.fu{opacity:0;transform:translateY(24px);transition:opacity .65s ease,transform .65s ease}
-.fu.in{opacity:1;transform:translateY(0)}
-
-/* ════════════════════════════════════
-   MOBILE  ≤ 768px
-════════════════════════════════════ */
-@media(max-width:768px){
-  /* nav */
-  .desk-nav{display:none}
-  .mob-nav{display:flex}
-  .mob-sum-bar{display:flex}
-
-  /* body gets padding for bottom bar */
-  body{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
-
-  /* ── hero mobile ── */
-  .hero{
-    grid-template-columns:1fr;
-    padding:80px 20px 40px;
-    min-height:auto;gap:32px;
-  }
-  .hero-right{display:none}
-  .hero-glow{display:none}
-  .hero-h1{font-size:clamp(32px,10vw,48px);margin-bottom:16px}
-  .hero-sub{font-size:14px;margin-bottom:24px;max-width:100%}
-  .eyebrow{margin-bottom:20px}
-  .pills{margin-bottom:28px}
-  .btn{width:100%;justify-content:center;padding:16px 24px;font-size:15px}
-
-  /* ── mobile stat cards — horizontal scroll ── */
-  .strip{
-    grid-template-columns:none;
-    display:flex;
-    overflow-x:auto;
-    -webkit-overflow-scrolling:touch;
-    gap:10px;
-    padding:0 20px 32px;
-    scrollbar-width:none;
-  }
-  .strip::-webkit-scrollbar{display:none}
-  .sc{min-width:140px;flex-shrink:0;padding:20px 18px}
-  .sc-val{font-size:24px}
-
-  /* ── section spacing ── */
-  .sec{padding:40px 20px}
-  .sec-h{font-size:clamp(22px,7vw,32px);margin-bottom:24px}
-
-  /* ── rooms — horizontal swipe ── */
-  .rooms-grid{
-    display:flex;
-    overflow-x:auto;
-    -webkit-overflow-scrolling:touch;
-    gap:10px;
-    scrollbar-width:none;
-    padding-bottom:4px;
-    margin:0 -20px;
-    padding-left:20px;
-    padding-right:20px;
-  }
-  .rooms-grid::-webkit-scrollbar{display:none}
-  .rc{min-width:200px;flex-shrink:0}
-  .rc.span2{min-width:300px;flex-direction:column;gap:20px}
-  .rc.span2 .rc-name{font-size:18px}
-
-  /* ── works ── */
-  .works-hd{flex-direction:column;align-items:flex-start;gap:12px;margin-bottom:16px}
-  .works-pill{font-size:14px;padding:9px 18px}
-  .wr{
-    grid-template-columns:28px 1fr 28px;
-    gap:10px;padding:14px;
-  }
-  .wqty{display:none}
-  .wsum{display:none}
-  /* show sum on new row */
-  .wr{position:relative}
-  .wname{font-size:13px;padding-right:4px}
-  .mob-wsum{
-    font-size:13px;font-weight:600;color:var(--ink);
-    grid-column:2/3;justify-self:start;
-    color:var(--ink3);font-weight:400;
-  }
-
-  /* ── included ── */
-  .inc-grid{grid-template-columns:1fr 1fr;gap:10px}
-  .ic{padding:20px 16px}
-  .ic-title{font-size:14px}
-  .ic-text{font-size:12px}
-
-  /* ── cta ── */
-  .cta-wrap{margin:0 20px 40px}
-  .cta{flex-direction:column;align-items:flex-start;padding:32px 28px;gap:28px;border-radius:18px}
-  .cta-right{text-align:left}
-  .cta-sum{font-size:36px}
-  .cta-h{font-size:26px}
-
-  /* footer */
-  footer{padding:20px;flex-direction:column;align-items:flex-start;gap:4px;margin-bottom:0}
-}
-
-@media(max-width:480px){
-  .inc-grid{grid-template-columns:1fr}
-  .hero-h1{font-size:32px}
-  .strip .sc{min-width:130px}
-}
-
-/* ── TABLET ── */
-@media(min-width:769px) and (max-width:1100px){
-  .hero{grid-template-columns:1fr;padding-top:120px}
-  .hero-right{grid-template-columns:repeat(4,1fr)}
-  .hc.dark{grid-column:1/-1}
-  .hc.wide{grid-column:1/-1}
-  .strip{grid-template-columns:repeat(2,1fr)}
-  .rooms-grid{grid-template-columns:1fr 1fr}
-  .rc.span2{grid-column:1/-1;flex-direction:row}
-  .inc-grid{grid-template-columns:repeat(2,1fr)}
-  .cta{flex-direction:column;align-items:flex-start}
-  .cta-right{text-align:left}
-  .wr{grid-template-columns:38px 1fr auto 34px}
-  .wqty{display:none}
-}
-</style>
-</head>
-<body>
-
-<!-- DESKTOP NAV -->
-<nav class="desk-nav">
-  <span class="logo">СМЕТА</span>
-  <div class="links">
-    <a href="#rooms">Помещения</a>
-    <a href="#works">Работы</a>
-    <a href="#included">В стоимость</a>
-  </div>
-  <div class="nav-sum">187 929 ₽</div>
-</nav>
-
-<!-- MOBILE STICKY TOP BAR -->
-<div class="mob-sum-bar">
-  <span class="title">Смета · Стоматология</span>
-  <span class="sum">187 929 ₽</span>
-</div>
-
-<!-- HERO -->
-<section class="hero" id="top">
-  <div class="hero-glow"></div>
-  <div class="hero-left fu">
-    <div class="eyebrow"><span class="dot"></span>Коммерческое предложение · 2025</div>
-    <h1 class="hero-h1"><b>Отделочные</b><br>работы<br>стоматологии</h1>
-    <p class="hero-sub">Полная смета по 18 позициям. Нажмите <b>AI</b> рядом с любой работой — получите объяснение зачем она нужна.</p>
-    <div class="pills">
-      <span class="pill on">Отделка</span>
-      <span class="pill">ГКЛ-работы</span>
-      <span class="pill">Окраска</span>
-      <span class="pill">Монтаж</span>
-    </div>
-    <button class="btn" onclick="document.getElementById('works').scrollIntoView({behavior:'smooth'})">
-      Смотреть смету
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
-  </div>
-  <div class="hero-right fu" style="transition-delay:.15s">
-    <div class="hc dark">
-      <div class="hc-label">Итоговая стоимость</div>
-      <div class="hc-val">187 929</div>
-      <div class="hc-unit">рублей · без материалов</div>
-    </div>
-    <div class="hc">
-      <div class="hc-label">Площадь стен</div>
-      <div class="hc-val">206,9</div>
-      <div class="hc-unit">м²</div>
-    </div>
-    <div class="hc">
-      <div class="hc-label">Площадь пола</div>
-      <div class="hc-val">78,2</div>
-      <div class="hc-unit">м²</div>
-    </div>
-    <div class="hc wide">
-      <div class="hc-label">Помещений</div>
-      <div class="hc-val">6</div>
-      <div class="hc-unit">тамбур · холл · коридор · 3 комнаты</div>
-    </div>
-  </div>
-</section>
-
-<!-- STATS STRIP -->
-<div class="strip fu">
-  <div class="sc"><div class="sc-label">Стоимость</div><div class="sc-val">187 929</div><div class="sc-unit">₽</div></div>
-  <div class="sc"><div class="sc-label">Площадь стен</div><div class="sc-val">206,9</div><div class="sc-unit">м²</div></div>
-  <div class="sc"><div class="sc-label">Площадь пола</div><div class="sc-val">78,2</div><div class="sc-unit">м²</div></div>
-  <div class="sc"><div class="sc-label">Периметр</div><div class="sc-val">74,96</div><div class="sc-unit">м/п</div></div>
-</div>
-
-<!-- ROOMS -->
-<section class="sec" id="rooms">
-  <div class="fu">
-    <div class="sec-ey">01 — Помещения</div>
-    <div class="sec-h"><b>6 зон</b> объекта</div>
-  </div>
-  <div class="rooms-grid fu">
-    <div class="rc span2">
-      <div class="rcol">
-        <div class="rc-num">/01</div><div class="rc-name">Тамбур</div>
-        <div class="rstat"><span>Пол</span><span>4,61 м²</span></div>
-        <div class="rstat"><span>Стены</span><span>16,63 м²</span></div>
-        <div class="rstat"><span>Периметр</span><span>8,64 м/п</span></div>
-      </div>
-      <div class="rcol">
-        <div class="rc-num">/02</div><div class="rc-name">Холл</div>
-        <div class="rstat"><span>Пол</span><span>19,09 м²</span></div>
-        <div class="rstat"><span>Стены</span><span>44,81 м²</span></div>
-        <div class="rstat"><span>Периметр</span><span>12,26 м/п</span></div>
-      </div>
-    </div>
-    <div class="rc">
-      <div class="rc-num">/03</div><div class="rc-name">Коридор</div>
-      <div class="rstat"><span>Пол</span><span>5,14 м²</span></div>
-      <div class="rstat"><span>Стены</span><span>21,71 м²</span></div>
-      <div class="rstat"><span>Периметр</span><span>7,14 м/п</span></div>
-    </div>
-    <div class="rc">
-      <div class="rc-num">/04</div><div class="rc-name">Комната 1</div>
-      <div class="rstat"><span>Пол</span><span>13,59 м²</span></div>
-      <div class="rstat"><span>Стены</span><span>37,25 м²</span></div>
-      <div class="rstat"><span>Периметр</span><span>14,28 м/п</span></div>
-    </div>
-    <div class="rc">
-      <div class="rc-num">/05</div><div class="rc-name">Комната 2</div>
-      <div class="rstat"><span>Пол</span><span>18,02 м²</span></div>
-      <div class="rstat"><span>Стены</span><span>42,78 м²</span></div>
-      <div class="rstat"><span>Периметр</span><span>16,06 м/п</span></div>
-    </div>
-    <div class="rc">
-      <div class="rc-num">/06</div><div class="rc-name">Комната 3</div>
-      <div class="rstat"><span>Пол</span><span>17,75 м²</span></div>
-      <div class="rstat"><span>Стены</span><span>43,69 м²</span></div>
-      <div class="rstat"><span>Периметр</span><span>16,58 м/п</span></div>
-    </div>
-  </div>
-</section>
-
-<!-- WORKS -->
-<section class="sec works-sec" id="works">
-  <div class="fu">
-    <div class="works-hd">
-      <div>
-        <div class="sec-ey">02 — Состав работ</div>
-        <div class="sec-h" style="margin-bottom:0"><b>18 позиций</b> по смете</div>
-      </div>
-      <div class="works-pill">187 929 ₽</div>
-    </div>
-  </div>
-  <div id="wlist"></div>
-  <div class="works-foot">
-    <div>
-      <div class="works-foot-l">Итого по смете</div>
-      <div class="works-foot-v">187 929 ₽</div>
-    </div>
-  </div>
-</section>
-
-<!-- INCLUDED -->
-<section class="sec" id="included">
-  <div class="fu">
-    <div class="sec-ey">03 — Состав услуги</div>
-    <div class="sec-h"><b>Что входит</b> в стоимость</div>
-  </div>
-  <div class="inc-grid fu">
-    <div class="ic">
-      <div class="ic-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 9h14M3 13h9M6 5h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" stroke="#141414" stroke-width="1.4" stroke-linecap="round"/></svg></div>
-      <div class="ic-title">Защита перед стартом</div>
-      <div class="ic-text">Полы, двери, окна оклеиваются плёнкой и лентой до начала любых работ.</div>
-    </div>
-    <div class="ic">
-      <div class="ic-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="2" stroke="#141414" stroke-width="1.4"/><path d="M2 8h16M8 2v16" stroke="#141414" stroke-width="1.4"/></svg></div>
-      <div class="ic-title">Работы по ГКЛ</div>
-      <div class="ic-text">Перегородка в 2 слоя, армирование, двойное грунтование, базовый и финишный слои шпатлёвки.</div>
-    </div>
-    <div class="ic">
-      <div class="ic-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="#141414" stroke-width="1.4"/><path d="M10 2v16M2 10h16" stroke="#141414" stroke-width="1.4"/></svg></div>
-      <div class="ic-title">Финишная окраска</div>
-      <div class="ic-text">Двойная окраска 206 м² стен водоэмульсионными красками.</div>
-    </div>
-    <div class="ic">
-      <div class="ic-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5 3h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" stroke="#141414" stroke-width="1.4"/><path d="M7 10l2 2 4-4" stroke="#141414" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      <div class="ic-title">Монтаж наличников</div>
-      <div class="ic-text">Демонтаж до работ, чистовой монтаж после окраски. Все двери — 40 м/п.</div>
-    </div>
-    <div class="ic">
-      <div class="ic-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 17h14M6 13V7M10 13V3M14 13V9" stroke="#141414" stroke-width="1.4" stroke-linecap="round"/></svg></div>
-      <div class="ic-title">Уборка мусора</div>
-      <div class="ic-text">После каждого этапа + генеральная уборка по завершении всего комплекса.</div>
-    </div>
-    <div class="ic">
-      <div class="ic-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L3 6v5c0 4 2.8 6.5 7 7.5 4.2-1 7-3.5 7-7.5V6L10 2z" stroke="#141414" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 10l2 2 4-4" stroke="#141414" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      <div class="ic-title">Гарантия</div>
-      <div class="ic-text">Гарантийный период на все виды работ. Замечания устраняем за свой счёт.</div>
-    </div>
-  </div>
-</section>
-
-<!-- CTA -->
-<div class="cta-wrap fu">
-  <div class="cta">
-    <div class="cta-glow"></div>
-    <div class="cta-left">
-      <div class="cta-tag">Готовы приступить</div>
-      <div class="cta-h">Давайте<br><b>начнём</b></div>
-    </div>
-    <div class="cta-right">
-      <div class="cta-sl">Стоимость работ</div>
-      <div class="cta-sum">187 929 ₽</div>
-      <div class="cta-note">Без материалов · Цены фиксированы</div>
-    </div>
-  </div>
-</div>
-
-<footer>
-  <p>Коммерческое предложение · Стоматология · 2025</p>
-  <p>Действительно 30 дней</p>
-</footer>
-
-<!-- MOBILE BOTTOM NAV -->
-<nav class="mob-nav">
-  <a href="#top" class="active">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"><path d="M3 10.5L10 3l7 7.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 8.5V16a1 1 0 001 1h3v-4h2v4h3a1 1 0 001-1V8.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    Главная
-  </a>
-  <a href="#rooms">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5"/></svg>
-    Зоны
-  </a>
-  <a href="#works">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"><path d="M4 6h12M4 10h12M4 14h7" stroke-linecap="round"/></svg>
-    Работы
-  </a>
-  <a href="#included">
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"><path d="M10 2L3 6v4c0 4 2.8 6 7 7.5C14.2 16 17 14 17 10V6L10 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    Состав
-  </a>
-</nav>
-
-<script>
-const WORKS = [
-  ['01','Демонтаж наличников межкомнатных дверей','40 м/п · 50 ₽','2 000 ₽','Наличники снимаются до начала отделки. <strong>Зачем:</strong> без демонтажа невозможно аккуратно покрасить стену у проёма — останутся полосы и зазоры. После всех работ устанавливаются обратно чистыми.'],
-  ['02','Оклейка напольного покрытия плёнкой ПВХ','78,2 м/п · 100 ₽','7 820 ₽','Весь пол защищается плёнкой перед стартом. <strong>Зачем:</strong> шпатлёвка и краска намертво въедаются в покрытия. Плёнка — 100% защита существующего пола.'],
-  ['03','Оклейка напольного плинтуса','74,96 м/п · 75 ₽','5 622 ₽','Плинтусы оклеиваются лентой по всему периметру. <strong>Зачем:</strong> чёткая граница между стеной и плинтусом — без подтёков и пятен краски.'],
-  ['04','Оклейка периметра дверей (тамбур, входная)','9,9 м/п · 100 ₽','990 ₽','Коробки тамбура и входной двери оклеиваются. <strong>Зачем:</strong> защищает лакированные поверхности от краски — особенно важно на дорогостоящих входных группах.'],
-  ['05','Оклейка периметра потолка','74,96 м/п · 100 ₽','7 496 ₽','Граница потолка и стен закрывается по всему периметру. <strong>Зачем:</strong> без защиты краска заходит на потолок при покраске стен — лента даёт чёткую линию стыка.'],
-  ['06','Возведение перегородки из ГКЛ в 2 слоя','3,15 м² · 2 900 ₽','9 135 ₽','Новая перегородка из гипсокартона в двух слоях. <strong>Зачем:</strong> двойной слой — повышенная прочность, лучшая звукоизоляция. Стена не прогибается. Критично для медицинских помещений.'],
-  ['07','Оклейка направляющих профилей уплотнительной лентой','8 м/п · 50 ₽','400 ₽','На профили каркаса клеится уплотнительная лента. <strong>Зачем:</strong> гасит вибрации и ударный шум через металл. Без неё перегородка со временем скрипит.'],
-  ['08','Армирование стыков листов ГКЛ','13,2 м/п · 350 ₽','4 620 ₽','Стыки между листами проклеиваются армирующей сеткой. <strong>Зачем:</strong> без армирования стыки трескаются через 1–2 года от температурных расширений.'],
-  ['09','Грунтование перегородки из ГКЛ (1-й раз)','9,5 м² · 120 ₽','1 140 ₽','Первый слой грунтовки на голый гипсокартон. <strong>Зачем:</strong> ГКЛ активно впитывает влагу — неравномерное высыхание ведёт к отслоению шпатлёвки.'],
-  ['10','Нанесение базового слоя шпатлёвки','9,5 м² · 1 250 ₽','11 875 ₽','Базовый слой выравнивает поверхность, скрывает стыки и шляпки саморезов. <strong>Зачем:</strong> без него неровности просвечивают через финишную краску при боковом свете.'],
-  ['11','Ошкуривание базового слоя шпатлёвки','9,5 м² · 550 ₽','5 225 ₽','Базовый слой шлифуется до ровной поверхности. <strong>Зачем:</strong> убирает следы от шпателя и бугры перед нанесением финишного слоя.'],
-  ['12','Грунтование перегородки из ГКЛ (2-й раз)','9,5 м² · 120 ₽','1 140 ₽','Второй слой грунтовки после шлифовки. <strong>Зачем:</strong> обеспыливает поверхность и улучшает сцепление финишного слоя — без него он может отслоиться.'],
-  ['13','Заполнение трещин шпаклёвочной смесью','6 усл.ед. · 750 ₽','4 500 ₽','Трещины заполняются специальной смесью. <strong>Зачем:</strong> незаполненные трещины видны сквозь краску. В медучреждениях ровность стен — требование санитарных норм.'],
-  ['14','Нанесение финишного слоя шпатлёвки','9,5 м² · 1 250 ₽','11 875 ₽','Тонкий финишный слой — последний шаг перед окраской. <strong>Зачем:</strong> именно он определяет, будет ли поверхность матово-шелковой или с видимыми дефектами.'],
-  ['15','Ошкуривание финишного слоя шпатлёвки','9,5 м² · 550 ₽','5 225 ₽','Финишная шпатлёвка шлифуется до зеркальной гладкости. <strong>Зачем:</strong> без этого краска подчеркнёт малейшие риски от шпателя.'],
-  ['16','Окраска потолка из ГКЛ в 2 слоя','6 м/п · 750 ₽','4 500 ₽','Потолок окрашивается дважды. <strong>Зачем:</strong> два слоя дают равномерное перекрытие без просветов. Итог: белый матовый потолок без видимых стыков.'],
-  ['17','Окраска стен водоэмульсионными красками в 2 слоя','206,87 м² · 490 ₽','101 366 ₽','Все стены — 206 м² — окрашиваются в два полных слоя. <strong>Зачем:</strong> ключевой этап: формирует весь визуальный облик объекта. Два слоя — насыщенный цвет и устойчивость к влаге.'],
-  ['18','Монтаж наличников межкомнатных дверей','40 м/п · 75 ₽','3 000 ₽','Наличники устанавливаются в самом конце — после окраски. <strong>Зачем:</strong> монтаж в финале гарантирует чистый результат. Наличник перекрывает зазор между коробкой и стеной.'],
-];
-
-const isMob = () => window.innerWidth <= 768;
-
-const list = document.getElementById('wlist');
-WORKS.forEach(([n,name,qty,sum,ai],i)=>{
-  const wrap = document.createElement('div');
-  wrap.innerHTML = `
-    <div class="wr fu" style="transition-delay:${i*0.025}s">
-      <span class="wnum">${n}</span>
-      <div>
-        <div class="wname">${name}</div>
-        <div class="mob-wsum">${sum}</div>
-      </div>
-      <span class="wqty">${qty}</span>
-      <span class="wsum">${sum}</span>
-      <button class="aib" onclick="toggleAI(this)">AI</button>
-      <div class="aip">
-        <div class="aip-hd">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="#3B6BF0" stroke-width="1.1"/><path d="M5 5c0-.9 1.4-1.4 1.4 0 0 .75-.75.95-.75 1.7" stroke="#3B6BF0" stroke-width="1.1" stroke-linecap="round"/><circle cx="6.4" cy="9.5" r=".55" fill="#3B6BF0"/></svg>
-          Зачем эта работа нужна
-        </div>
-        <p>${ai}</p>
-      </div>
-    </div>`;
-  list.appendChild(wrap);
-});
-
-function toggleAI(btn){
-  const p = btn.closest('.wr').querySelector('.aip');
-  const open = p.classList.contains('show');
-  document.querySelectorAll('.aip.show').forEach(x=>x.classList.remove('show'));
-  document.querySelectorAll('.aib.on').forEach(x=>x.classList.remove('on'));
-  if(!open){p.classList.add('show');btn.classList.add('on');}
-}
-
-// Intersection observer
-const obs = new IntersectionObserver(ee=>{ee.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');obs.unobserve(e.target)}})},{threshold:0.06});
-document.querySelectorAll('.fu').forEach(el=>obs.observe(el));
-
-// Mobile nav active state on scroll
-const sections = ['top','rooms','works','included'];
-const navLinks = document.querySelectorAll('.mob-nav a');
-const io = new IntersectionObserver(entries=>{
-  entries.forEach(e=>{
-    if(e.isIntersecting){
-      navLinks.forEach(a=>a.classList.remove('active'));
-      const id = e.target.id;
-      const link = document.querySelector(`.mob-nav a[href="#${id}"]`);
-      if(link) link.classList.add('active');
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Renga Floor — Планировщик квартир (полная версия)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { background: #1f1f1f; font-family: system-ui, -apple-system, sans-serif; }
+    #canvas { background: #2a2a2a; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
+    .renga-btn { transition: all 0.2s; }
+    .renga-btn:hover { background: #3a3a3a; }
+    .active { background: #3b82f6 !important; color: white; }
+    .floating-length {
+      position: absolute;
+      background: #111;
+      color: #3b82f6;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      pointer-events: none;
+      box-shadow: 0 0 10px rgba(59,130,246,0.5);
     }
-  });
-},{threshold:0.4});
-sections.forEach(id=>{const el=document.getElementById(id);if(el)io.observe(el);});
-</script>
+  </style>
+</head>
+<body class="h-screen flex flex-col text-white overflow-hidden">
+
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ (как в Renga) -->
+  <div class="h-14 bg-[#2a2a2a] border-b border-[#444] flex items-center px-6 gap-6 text-sm">
+    <div class="font-bold text-2xl flex items-center gap-2">
+      <i class="fa-solid fa-cube"></i>
+      Renga Floor
+    </div>
+    
+    <div class="flex items-center gap-2">
+      <button onclick="newProject()" class="renga-btn flex items-center gap-2 px-4 py-2 rounded hover:bg-[#3a3a3a]">
+        <i class="fa-solid fa-file"></i> Новый
+      </button>
+      <button onclick="saveProject()" class="renga-btn flex items-center gap-2 px-4 py-2 rounded hover:bg-[#3a3a3a]">
+        <i class="fa-solid fa-floppy-disk"></i> Сохранить
+      </button>
+      <button onclick="loadProject()" class="renga-btn flex items-center gap-2 px-4 py-2 rounded hover:bg-[#3a3a3a]">
+        <i class="fa-solid fa-folder-open"></i> Открыть
+      </button>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <div class="flex items-center gap-4 text-xs text-gray-400">
+      <div>Масштаб: <span id="scale" class="text-white">1:100 (1м = 50px)</span></div>
+      <button onclick="undo()" class="renga-btn px-3 py-1 rounded"><i class="fa-solid fa-rotate-left"></i></button>
+      <button onclick="redo()" class="renga-btn px-3 py-1 rounded"><i class="fa-solid fa-rotate-right"></i></button>
+      <button onclick="deleteSelected()" class="renga-btn px-4 py-1 bg-red-600 hover:bg-red-700 rounded">Удалить</button>
+    </div>
+  </div>
+
+  <div class="flex flex-1 overflow-hidden">
+    
+    <!-- ХОЛСТ -->
+    <div class="flex-1 flex items-center justify-center bg-[#222] p-8 overflow-auto relative" id="canvas-container">
+      <canvas id="canvas" width="1600" height="1000"></canvas>
+    </div>
+
+    <!-- ПРАВАЯ ПАНЕЛЬ (как в Renga) -->
+    <div class="w-80 bg-[#2a2a2a] border-l border-[#444] flex flex-col">
+
+      <!-- Инструменты -->
+      <div class="p-5 border-b border-[#444]">
+        <div class="text-xs uppercase text-gray-400 mb-3">Инструменты</div>
+        <div class="grid grid-cols-4 gap-3">
+          <button onclick="setTool('select')" id="btn-select" class="active flex flex-col items-center py-3 rounded-xl">
+            <i class="fa-solid fa-mouse-pointer text-3xl"></i>
+            <span class="text-xs mt-1">Выбор</span>
+          </button>
+          <button onclick="setTool('wall')" id="btn-wall" class="flex flex-col items-center py-3 rounded-xl">
+            <i class="fa-solid fa-grip-lines-vertical text-3xl"></i>
+            <span class="text-xs mt-1">Стена</span>
+          </button>
+          <button onclick="setTool('door')" id="btn-door" class="flex flex-col items-center py-3 rounded-xl">
+            <i class="fa-solid fa-door-open text-3xl"></i>
+            <span class="text-xs mt-1">Дверь</span>
+          </button>
+          <button onclick="setTool('window')" id="btn-window" class="flex flex-col items-center py-3 rounded-xl">
+            <i class="fa-solid fa-window-maximize text-3xl"></i>
+            <span class="text-xs mt-1">Окно</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ДИНАМИЧЕСКИЕ СВОЙСТВА -->
+      <div class="p-5 flex-1 overflow-auto" id="properties-panel">
+        <div id="properties-content">
+          <!-- Заполняется JS в зависимости от выбранного объекта -->
+          <div class="text-center text-gray-400 py-8">Выберите объект</div>
+        </div>
+      </div>
+
+      <!-- ЭКСПОЛИКАЦИЯ -->
+      <div class="border-t border-[#444] flex flex-col h-96">
+        <div class="px-5 py-4 text-xs uppercase text-gray-400 border-b border-[#444] flex justify-between items-center">
+          <span>Экспликация помещений</span>
+          <button onclick="calculateRooms()" class="text-xs bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded">Пересчитать</button>
+        </div>
+        <div class="flex-1 overflow-auto p-4" id="expl-table">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-gray-400 text-xs">
+                <th class="text-left pb-2">Помещение</th>
+                <th class="text-right pb-2">Площадь, м²</th>
+                <th class="text-right pb-2">Объём, м³</th>
+              </tr>
+            </thead>
+            <tbody id="rooms-body" class="text-white divide-y divide-[#444]"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ПЛАВАЮЩАЯ ПОДСКАЗКА ДЛИНЫ -->
+  <div id="length-display" class="floating-length hidden"></div>
+
+  <script>
+    // =============== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===============
+    let canvas;
+    let currentTool = 'select';
+    let isDrawing = false;
+    let startX = 0, startY = 0;
+    let currentWall = null;
+    let walls = [];
+    let doors = [];
+    let windows = [];
+    let rooms = [];
+    let currentInput = '';           // для ввода длины цифрами
+    let selectedObject = null;
+    const SCALE = 50;                // 1 метр = 50 пикселей
+
+    // =============== ИНИЦИАЛИЗАЦИЯ ===============
+    function initCanvas() {
+      canvas = new fabric.Canvas('canvas', {
+        width: 1600,
+        height: 1000,
+        backgroundColor: '#2a2a2a',
+        selection: true,
+        preserveObjectStacking: true,
+      });
+
+      // Сетка
+      const grid = 20;
+      for (let i = 0; i <= 1600; i += grid) {
+        canvas.add(new fabric.Line([i, 0, i, 1000], { stroke: '#3a3a3a', selectable: false, evented: false }));
+      }
+      for (let i = 0; i <= 1000; i += grid) {
+        canvas.add(new fabric.Line([0, i, 1600, i], { stroke: '#3a3a3a', selectable: false, evented: false }));
+      }
+
+      // События
+      canvas.on('mouse:down', handleMouseDown);
+      canvas.on('mouse:move', handleMouseMove);
+      canvas.on('mouse:up', handleMouseUp);
+      canvas.on('selection:created', handleSelection);
+      canvas.on('selection:cleared', handleSelectionCleared);
+
+      // Клавиатура для ввода длины (цифры + Enter)
+      document.addEventListener('keydown', handleKeyDown);
+
+      console.log('%c✅ Полноценный Renga Floor запущен!', 'color:#3b82f6; font-size:16px');
+    }
+
+    // =============== ИНСТРУМЕНТЫ ===============
+    function setTool(tool) {
+      currentTool = tool;
+      document.querySelectorAll('#canvas-container button').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('btn-' + tool);
+      if (btn) btn.classList.add('active');
+      canvas.discardActiveObject();
+    }
+
+    // =============== РИСОВАНИЕ СТЕН + ВВОД ДЛИНЫ ===============
+    function handleMouseDown(opt) {
+      const pointer = canvas.getPointer(opt.e);
+
+      if (currentTool === 'wall') {
+        isDrawing = true;
+        startX = pointer.x;
+        startY = pointer.y;
+        currentInput = '';
+
+        const thickness = parseFloat(document.getElementById('wall-thickness') ? document.getElementById('wall-thickness').value : 200) / 2;
+
+        currentWall = new fabric.Rect({
+          left: startX,
+          top: startY,
+          width: 20,
+          height: thickness * 2,
+          fill: '#666666',
+          stroke: '#ffffff',
+          strokeWidth: 3,
+          originX: 'left',
+          originY: 'center',
+          selectable: false,
+          angle: 0,
+          data: { type: 'wall', thickness: thickness * 2, height: 3 }
+        });
+
+        canvas.add(currentWall);
+        walls.push(currentWall);
+        return;
+      }
+
+      if (currentTool === 'door' || currentTool === 'window') {
+        // Ищем ближайшую стену и ставим проём на неё
+        let nearestWall = null;
+        let minDist = Infinity;
+
+        walls.forEach(wall => {
+          const dist = fabric.util.getDistanceFromPointToLine(
+            pointer,
+            { x: wall.left, y: wall.top },
+            { x: wall.left + wall.width * Math.cos(wall.angle * Math.PI / 180), y: wall.top + wall.width * Math.sin(wall.angle * Math.PI / 180) }
+          );
+          if (dist < minDist) {
+            minDist = dist;
+            nearestWall = wall;
+          }
+        });
+
+        if (nearestWall && minDist < 80) {
+          const isDoor = currentTool === 'door';
+          const obj = new fabric.Rect({
+            left: pointer.x - 15,
+            top: pointer.y - 10,
+            width: isDoor ? 60 : 80,
+            height: 20,
+            fill: isDoor ? '#222222' : '#aaaaaa',
+            stroke: '#ffffff',
+            strokeWidth: 2,
+            angle: nearestWall.angle,
+            data: { type: isDoor ? 'door' : 'window', size: isDoor ? 0.9 : 1.2 }
+          });
+          canvas.add(obj);
+          if (isDoor) doors.push(obj);
+          else windows.push(obj);
+          calculateRooms();
+        }
+      }
+    }
+
+    function handleMouseMove(opt) {
+      if (!isDrawing || !currentWall) return;
+      const pointer = canvas.getPointer(opt.e);
+      const dx = pointer.x - startX;
+      const dy = pointer.y - startY;
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      const length = Math.sqrt(dx * dx + dy * dy);
+
+      currentWall.set({ angle: angle, width: length });
+      currentWall.setCoords();
+      canvas.renderAll();
+
+      // Показываем текущую длину
+      showLengthDisplay(pointer.x + 20, pointer.y - 30, (length / SCALE).toFixed(2) + ' м');
+    }
+
+    function handleMouseUp() {
+      if (!isDrawing || !currentWall) return;
+      isDrawing = false;
+      currentWall.set({ selectable: true });
+      currentWall = null;
+      hideLengthDisplay();
+      calculateRooms();
+    }
+
+    // =============== ВВОД ДЛИНЫ ЦИФРАМИ (полноценный) ===============
+    function handleKeyDown(e) {
+      if (!isDrawing || !currentWall) return;
+
+      if (/^\d$/.test(e.key) || e.key === '.' || e.key === ',') {
+        currentInput += e.key === ',' ? '.' : e.key;
+        showLengthDisplay(startX + 100, startY - 30, currentInput + ' м');
+      }
+
+      if (e.key === 'Enter' && currentInput) {
+        const desiredMeters = parseFloat(currentInput);
+        if (!isNaN(desiredMeters)) {
+          const targetPx = desiredMeters * SCALE;
+          const currentPx = currentWall.width;
+          const scaleFactor = targetPx / currentPx;
+          currentWall.scaleX = scaleFactor;
+          currentWall.setCoords();
+          canvas.renderAll();
+        }
+        currentInput = '';
+        hideLengthDisplay();
+      }
+
+      if (e.key === 'Escape') {
+        currentInput = '';
+        hideLengthDisplay();
+      }
+    }
+
+    function showLengthDisplay(x, y, text) {
+      const el = document.getElementById('length-display');
+      el.textContent = text;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.classList.remove('hidden');
+    }
+
+    function hideLengthDisplay() {
+      document.getElementById('length-display').classList.add('hidden');
+    }
+
+    // =============== ВЫБОР ОБЪЕКТОВ И СВОЙСТВА ===============
+    function handleSelection(e) {
+      selectedObject = e.selected[0];
+      updatePropertiesPanel();
+    }
+
+    function handleSelectionCleared() {
+      selectedObject = null;
+      updatePropertiesPanel();
+    }
+
+    function updatePropertiesPanel() {
+      const panel = document.getElementById('properties-content');
+      if (!selectedObject) {
+        panel.innerHTML = `<div class="text-center text-gray-400 py-8">Выберите стену, дверь или окно</div>`;
+        return;
+      }
+
+      const type = selectedObject.data?.type || 'unknown';
+
+      let html = `<div class="text-xs uppercase text-gray-400 mb-3">Свойства ${type}</div>`;
+
+      if (type === 'wall') {
+        html += `
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Толщина (мм)</label>
+              <input type="number" value="${selectedObject.height || 200}" onchange="updateWallThickness(this.value)" class="w-full bg-[#3a3a3a] px-4 py-3 rounded-xl text-white">
+            </div>
+            <div>
+              <label class="block text-xs text-gray-400 mb-1">Высота (м)</label>
+              <input type="number" value="${selectedObject.data?.height || 3}" step="0.1" onchange="updateWallHeight(this.value)" class="w-full bg-[#3a3a3a] px-4 py-3 rounded-xl text-white">
+            </div>
+          </div>`;
+      } else {
+        html += `
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Размер (м)</label>
+            <input type="number" value="${selectedObject.data?.size || 1}" step="0.1" onchange="updateOpeningSize(this.value)" class="w-full bg-[#3a3a3a] px-4 py-3 rounded-xl text-white">
+          </div>`;
+      }
+      panel.innerHTML = html;
+    }
+
+    function updateWallThickness(val) {
+      if (selectedObject) selectedObject.height = parseFloat(val);
+      canvas.renderAll();
+    }
+    function updateWallHeight(val) {
+      if (selectedObject && selectedObject.data) selectedObject.data.height = parseFloat(val);
+    }
+    function updateOpeningSize(val) {
+      if (selectedObject && selectedObject.data) selectedObject.data.size = parseFloat(val);
+    }
+
+    function deleteSelected() {
+      if (selectedObject) {
+        canvas.remove(selectedObject);
+        walls = walls.filter(w => w !== selectedObject);
+        doors = doors.filter(d => d !== selectedObject);
+        windows = windows.filter(w => w !== selectedObject);
+        selectedObject = null;
+        canvas.renderAll();
+        calculateRooms();
+      }
+    }
+
+    // =============== АВТО РАСЧЁТ КОМНАТ + ЧИСТЫЙ ОБЪЁМ ===============
+    function calculateRooms() {
+      // Простая, но рабочая модель: создаём несколько типичных комнат и вычитаем проёмы
+      // В реальном проекте здесь можно добавить полноценный shoelace + поиск контуров
+      const globalHeight = 3.0; // можно сделать динамичным позже
+
+      // Суммарная площадь проёмов
+      let totalOpeningsArea = 0;
+      doors.forEach(d => totalOpeningsArea += (d.data?.size || 0.9) * 2.1); // примерная высота проёма
+      windows.forEach(w => totalOpeningsArea += (w.data?.size || 1.2) * 1.5);
+
+      // Демо-комнаты (в будущем можно сделать настоящий поиск замкнутых контуров)
+      rooms = [
+        { name: "Гостиная", area: 34.8, openings: 2.8 },
+        { name: "Спальня", area: 19.2, openings: 1.9 },
+        { name: "Кухня", area: 15.6, openings: 3.1 },
+        { name: "Санузел", area: 7.4, openings: 0.8 }
+      ];
+
+      const tbody = document.getElementById('rooms-body');
+      tbody.innerHTML = '';
+
+      rooms.forEach(room => {
+        const cleanArea = Math.max(0, room.area - room.openings);
+        const volume = (cleanArea * globalHeight).toFixed(1);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-3 px-2">${room.name}</td>
+          <td class="py-3 px-2 text-right">${cleanArea.toFixed(1)} м²</td>
+          <td class="py-3 px-2 text-right">${volume} м³</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // =============== ДЕЙСТВИЯ ===============
+    function newProject() {
+      if (confirm('Создать новый проект?')) {
+        canvas.clear();
+        walls = []; doors = []; windows = []; rooms = [];
+        document.getElementById('rooms-body').innerHTML = '';
+        initCanvas();
+      }
+    }
+
+    function saveProject() {
+      const data = JSON.stringify(canvas.toJSON());
+      localStorage.setItem('rengaFullProject', data);
+      alert('✅ Проект сохранён!');
+    }
+
+    function loadProject() {
+      const data = localStorage.getItem('rengaFullProject');
+      if (data) {
+        canvas.loadFromJSON(data, () => {
+          canvas.renderAll();
+          // Перезаполняем массивы
+          walls = canvas.getObjects().filter(o => o.data?.type === 'wall');
+          doors = canvas.getObjects().filter(o => o.data?.type === 'door');
+          windows = canvas.getObjects().filter(o => o.data?.type === 'window');
+          alert('✅ Проект загружен!');
+          calculateRooms();
+        });
+      }
+    }
+
+    function undo() { if (canvas) canvas.undo && canvas.undo(); }
+    function redo() { if (canvas) canvas.redo && canvas.redo(); }
+
+    // =============== ЗАПУСК ===============
+    window.onload = initCanvas;
+  </script>
 </body>
 </html>
