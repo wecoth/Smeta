@@ -357,7 +357,7 @@
   .expl-scroll {
     flex: 1;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
   }
   .expl-scroll::-webkit-scrollbar { width: 4px; }
   .expl-scroll::-webkit-scrollbar-thumb { background: #d0d6e2; border-radius: 4px; }
@@ -731,19 +731,20 @@
       <div class="expl-scroll">
         <table class="expl-table">
           <thead>
-            <tr>
-              <th>Помещение</th>
-              <th>Пол м²</th>
-              <th>Стены м²</th>
-              <th>Периметр м</th>
-              <th>Проёмы м²</th>
-            </tr>
-          </thead>
-          <tbody id="explBody">
-            <tr class="empty-row"><td colspan="5">Нарисуйте замкнутый контур, чтобы посчитать пол, стены и периметр</td></tr>
-          </tbody>
-        </table>
-      </div>
+	            <tr>
+	              <th>Помещение</th>
+	              <th>Пол м²</th>
+	              <th>Объём м³</th>
+	              <th>Стены м²</th>
+	              <th>Периметр м</th>
+	              <th>Проёмы м²</th>
+	            </tr>
+	          </thead>
+	          <tbody id="explBody">
+	            <tr class="empty-row"><td colspan="6">Нарисуйте замкнутый контур, чтобы посчитать пол, объём, стены и периметр</td></tr>
+	          </tbody>
+	        </table>
+	      </div>
     </div>
 
   </div><!-- /right-panel -->
@@ -2353,6 +2354,9 @@
       fillWallShape(traceWall, style.fill);
       ctx.strokeStyle = style.stroke;
       ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      ctx.miterLimit = 4;
       ctx.beginPath();
       ctx.moveTo(geometry.a.x, geometry.a.y);
       ctx.lineTo(geometry.b.x, geometry.b.y);
@@ -2465,6 +2469,9 @@
           ctx.save();
           ctx.strokeStyle = style.stroke;
           ctx.lineWidth = selected ? 1.5 : 1;
+          ctx.lineCap = 'square';
+          ctx.lineJoin = 'miter';
+          ctx.miterLimit = 4;
           ctx.beginPath();
           for (const edge of boundaryEdges) {
             const p1 = toScreen(edge.x1, edge.y1);
@@ -3670,18 +3677,23 @@
 
         if (!enclosed || areaMm2 < 50000) continue;
 
-        const centroid = { x: weightedX / areaMm2, y: weightedY / areaMm2 };
-        const center = cells.reduce((best, cell) => {
-          const cellCenter = { x: (cell.x1 + cell.x2) / 2, y: (cell.y1 + cell.y2) / 2 };
-          const dist = Math.hypot(cellCenter.x - centroid.x, cellCenter.y - centroid.y);
-          return !best || dist < best.dist ? { ...cellCenter, dist } : best;
-        }, null);
+	        const centroid = { x: weightedX / areaMm2, y: weightedY / areaMm2 };
+	        const center = cells.reduce((best, cell) => {
+	          const cellCenter = { x: (cell.x1 + cell.x2) / 2, y: (cell.y1 + cell.y2) / 2 };
+	          const dist = Math.hypot(cellCenter.x - centroid.x, cellCenter.y - centroid.y);
+	          return !best || dist < best.dist ? { ...cellCenter, dist } : best;
+	        }, null);
 
-        let grossWallArea = 0;
-        let perimeter = 0;
-        for (const seg of boundarySegments) {
-          perimeter += seg.length;
-          const wallHeight = seg.wall ? seg.wall.height : (parseFloat(inpWallHeight.value) || 2700);
+	        const defaultRoomHeight = parseFloat(inpWallHeight.value) || 2700;
+	        const roomHeightMm = boundarySegments.reduce((minHeight, seg) => {
+	          const wallHeight = seg.wall ? (seg.wall.height || defaultRoomHeight) : defaultRoomHeight;
+	          return Math.min(minHeight, wallHeight);
+	        }, defaultRoomHeight);
+	        let grossWallArea = 0;
+	        let perimeter = 0;
+	        for (const seg of boundarySegments) {
+	          perimeter += seg.length;
+	          const wallHeight = seg.wall ? seg.wall.height : (parseFloat(inpWallHeight.value) || 2700);
           grossWallArea += seg.length * wallHeight / 1e6;
         }
 
@@ -3697,11 +3709,13 @@
         rooms.push({
           key,
           cells,
-          boundarySegments,
-          area: areaMm2 / 1e6,
-          wallArea: Math.max(0, grossWallArea - openingsArea),
-          perimeter: perimeter / 1000,
-          openingsArea,
+	          boundarySegments,
+	          area: areaMm2 / 1e6,
+	          volume: areaMm2 * roomHeightMm / 1e9,
+	          height: roomHeightMm / 1000,
+	          wallArea: Math.max(0, grossWallArea - openingsArea),
+	          perimeter: perimeter / 1000,
+	          openingsArea,
           center: { x: center.x, y: center.y },
           defaultName,
           name: roomNameOverrides[key] || defaultName
@@ -3716,7 +3730,7 @@
   function updateExpl() {
     roomCount.textContent = rooms.length;
     if (!rooms.length) {
-      explBody.innerHTML = '<tr class="empty-row"><td colspan="5">Нарисуйте замкнутый контур, чтобы посчитать пол, стены и периметр</td></tr>';
+      explBody.innerHTML = '<tr class="empty-row"><td colspan="6">Нарисуйте замкнутый контур, чтобы посчитать пол, объём, стены и периметр</td></tr>';
       return;
     }
     explBody.innerHTML = rooms.map((r, i) => {
@@ -3725,14 +3739,15 @@
         <td>
           <div class="room-name-cell">
             <span class="room-dot" style="background:${color}"></span>
-            <input class="room-name-input" type="text" value="${escapeHtml(r.name)}" data-room-key="${escapeHtml(r.key)}" data-room-default="${escapeHtml(r.defaultName)}">
-          </div>
-        </td>
-        <td>${r.area.toFixed(2)}</td>
-        <td>${r.wallArea.toFixed(2)}</td>
-        <td>${r.perimeter.toFixed(2)}</td>
-        <td>${r.openingsArea.toFixed(2)}</td>
-      </tr>`;
+	            <input class="room-name-input" type="text" value="${escapeHtml(r.name)}" data-room-key="${escapeHtml(r.key)}" data-room-default="${escapeHtml(r.defaultName)}">
+	          </div>
+	        </td>
+	        <td>${r.area.toFixed(2)}</td>
+	        <td>${r.volume.toFixed(2)}</td>
+	        <td>${r.wallArea.toFixed(2)}</td>
+	        <td>${r.perimeter.toFixed(2)}</td>
+	        <td>${r.openingsArea.toFixed(2)}</td>
+	      </tr>`;
     }).join('');
   }
 
