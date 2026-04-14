@@ -789,6 +789,7 @@
   let historyFuture = [];
   let isRestoringHistory = false;
   let wallHatchPattern = null;
+  let currentGuideLine = null;
 
   // colors for rooms
   const ROOM_COLORS = [
@@ -884,6 +885,7 @@
     chainMode = false;
     drawStart = null;
     drawEnd = null;
+    currentGuideLine = null;
     lengthInput = '';
     lengthMode = false;
     lengthOverlay.style.display = 'none';
@@ -979,6 +981,23 @@
     return jointMap.get(getWallJointKey(getWallJointPoint(wall, endpoint))) || [];
   }
 
+  function getWallWorldGeometry(wall) {
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const halfT = wall.thickness / 2;
+    const dx = -Math.sin(angle) * halfT;
+    const dy = Math.cos(angle) * halfT;
+    return {
+      p1: { x: wall.x1, y: wall.y1 },
+      p2: { x: wall.x2, y: wall.y2 },
+      angle,
+      halfT,
+      a: { x: wall.x1 + dx, y: wall.y1 + dy },
+      b: { x: wall.x2 + dx, y: wall.y2 + dy },
+      c: { x: wall.x2 - dx, y: wall.y2 - dy },
+      d: { x: wall.x1 - dx, y: wall.y1 - dy }
+    };
+  }
+
   function getWallSurfaceStyle(isSelected) {
     return {
       fill: isSelected ? '#dbeafe' : '#eceef2',
@@ -1020,22 +1039,137 @@
   }
 
   function getWallScreenGeometry(wall) {
-    const p1 = toScreen(wall.x1, wall.y1);
-    const p2 = toScreen(wall.x2, wall.y2);
-    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
-    const halfT = (wall.thickness / 2) * scale;
-    const dx = -Math.sin(angle) * halfT;
-    const dy = Math.cos(angle) * halfT;
+    const world = getWallWorldGeometry(wall);
     return {
-      p1,
-      p2,
-      angle,
-      halfT,
-      a: { x: p1.x + dx, y: p1.y + dy },
-      b: { x: p2.x + dx, y: p2.y + dy },
-      c: { x: p2.x - dx, y: p2.y - dy },
-      d: { x: p1.x - dx, y: p1.y - dy }
+      p1: toScreen(world.p1.x, world.p1.y),
+      p2: toScreen(world.p2.x, world.p2.y),
+      angle: world.angle,
+      halfT: world.halfT * scale,
+      a: toScreen(world.a.x, world.a.y),
+      b: toScreen(world.b.x, world.b.y),
+      c: toScreen(world.c.x, world.c.y),
+      d: toScreen(world.d.x, world.d.y)
     };
+  }
+
+  function getWallWorldBounds(wall) {
+    const geometry = getWallWorldGeometry(wall);
+    const points = [geometry.a, geometry.b, geometry.c, geometry.d];
+    return {
+      minX: Math.min(...points.map(point => point.x)),
+      maxX: Math.max(...points.map(point => point.x)),
+      minY: Math.min(...points.map(point => point.y)),
+      maxY: Math.max(...points.map(point => point.y))
+    };
+  }
+
+  function getWallGuideCorners(wall) {
+    const geometry = getWallWorldGeometry(wall);
+    const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+    if (len < 1) return [];
+    const dir = {
+      x: (wall.x2 - wall.x1) / len,
+      y: (wall.y2 - wall.y1) / len
+    };
+    return [geometry.a, geometry.b, geometry.c, geometry.d].map((point, index) => ({
+      id: `${wall.id}:${index}`,
+      wall,
+      point,
+      dir
+    }));
+  }
+
+  function getGuideLineScreenEndpoints(guide) {
+    const anchor = toScreen(guide.anchor.x, guide.anchor.y);
+    const span = Math.max(canvas.width, canvas.height) * 2;
+    return {
+      start: { x: anchor.x - guide.dir.x * span, y: anchor.y - guide.dir.y * span },
+      end: { x: anchor.x + guide.dir.x * span, y: anchor.y + guide.dir.y * span },
+      anchor
+    };
+  }
+
+  function distancePointToGuideLineScreen(screenPoint, guide) {
+    const { anchor } = getGuideLineScreenEndpoints(guide);
+    const dx = screenPoint.x - anchor.x;
+    const dy = screenPoint.y - anchor.y;
+    return Math.abs(dx * (-guide.dir.y) + dy * guide.dir.x);
+  }
+
+  function projectPointToGuideLineWorld(point, guide) {
+    const dx = point.x - guide.anchor.x;
+    const dy = point.y - guide.anchor.y;
+    const along = dx * guide.dir.x + dy * guide.dir.y;
+    return {
+      x: guide.anchor.x + guide.dir.x * along,
+      y: guide.anchor.y + guide.dir.y * along
+    };
+  }
+
+  function findGuideCandidate(screenPoint) {
+    const tolerance = 14;
+    let best = null;
+    let bestDistance = tolerance;
+    for (const wall of walls) {
+      for (const corner of getWallGuideCorners(wall)) {
+        const screen = toScreen(corner.point.x, corner.point.y);
+        const distance = Math.hypot(screenPoint.x - screen.x, screenPoint.y - screen.y);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = {
+            id: corner.id,
+            wallId: wall.id,
+            anchor: { x: corner.point.x, y: corner.point.y },
+            dir: { x: corner.dir.x, y: corner.dir.y }
+          };
+        }
+      }
+    }
+    return best;
+  }
+
+  function updateWallGuide(worldPoint, screenPoint) {
+    if (tool !== 'wall' || !isDrawing || !drawStart) {
+      currentGuideLine = null;
+      return;
+    }
+
+    const candidate = findGuideCandidate(screenPoint);
+    if (candidate) {
+      currentGuideLine = candidate;
+      return;
+    }
+
+    if (currentGuideLine) {
+      const guideDistance = distancePointToGuideLineScreen(screenPoint, currentGuideLine);
+      const anchorScreen = toScreen(currentGuideLine.anchor.x, currentGuideLine.anchor.y);
+      const anchorDistance = Math.hypot(screenPoint.x - anchorScreen.x, screenPoint.y - anchorScreen.y);
+      if (guideDistance <= 18 || anchorDistance <= 20) return;
+    }
+
+    currentGuideLine = null;
+  }
+
+  function drawCurrentGuideLine() {
+    if (!currentGuideLine) return;
+    const { start, end, anchor } = getGuideLineScreenEndpoints(currentGuideLine);
+    ctx.save();
+    ctx.strokeStyle = '#ff8800';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 8]);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(anchor.x, anchor.y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
   }
 
   function getWallInteriorSide(wall, fallback = 1) {
@@ -1297,17 +1431,52 @@
       }
     }
 
+    if (currentGuideLine) {
+      rawEnd = {
+        ...rawEnd,
+        ...projectPointToGuideLineWorld(rawEnd, currentGuideLine),
+        snappedToGuide: true
+      };
+    } else {
+      rawEnd.snappedToGuide = false;
+    }
+
     if (lengthMode && lengthInput && drawStart) {
       const targetLen = parseFloat(lengthInput);
       if (!isNaN(targetLen) && targetLen > 0) {
-        const dx = rawEnd.x - drawStart.x;
-        const dy = rawEnd.y - drawStart.y;
-        const curLen = Math.hypot(dx, dy);
-        if (curLen > 0.1) {
-          rawEnd = {
-            x: drawStart.x + (dx / curLen) * targetLen,
-            y: drawStart.y + (dy / curLen) * targetLen
-          };
+        if (currentGuideLine) {
+          const ax = currentGuideLine.anchor.x - drawStart.x;
+          const ay = currentGuideLine.anchor.y - drawStart.y;
+          const dot = ax * currentGuideLine.dir.x + ay * currentGuideLine.dir.y;
+          const dist2 = ax * ax + ay * ay;
+          const disc = dot * dot - (dist2 - targetLen * targetLen);
+          if (disc >= 0) {
+            const sqrtDisc = Math.sqrt(disc);
+            const t1 = -dot + sqrtDisc;
+            const t2 = -dot - sqrtDisc;
+            const p1 = {
+              x: currentGuideLine.anchor.x + currentGuideLine.dir.x * t1,
+              y: currentGuideLine.anchor.y + currentGuideLine.dir.y * t1
+            };
+            const p2 = {
+              x: currentGuideLine.anchor.x + currentGuideLine.dir.x * t2,
+              y: currentGuideLine.anchor.y + currentGuideLine.dir.y * t2
+            };
+            const d1 = Math.hypot(rawEnd.x - p1.x, rawEnd.y - p1.y);
+            const d2 = Math.hypot(rawEnd.x - p2.x, rawEnd.y - p2.y);
+            rawEnd = d1 <= d2 ? p1 : p2;
+            rawEnd.snappedToGuide = true;
+          }
+        } else {
+          const dx = rawEnd.x - drawStart.x;
+          const dy = rawEnd.y - drawStart.y;
+          const curLen = Math.hypot(dx, dy);
+          if (curLen > 0.1) {
+            rawEnd = {
+              x: drawStart.x + (dx / curLen) * targetLen,
+              y: drawStart.y + (dy / curLen) * targetLen
+            };
+          }
         }
       }
     }
@@ -1325,6 +1494,7 @@
     computeRooms();
     drawStart = { x: end.x, y: end.y };
     drawEnd = { x: end.x, y: end.y };
+    currentGuideLine = null;
     lengthInput = '';
     lengthMode = false;
     chainMode = true;
@@ -1366,6 +1536,7 @@
     drawOpenings();
     if (hoverOpening) drawHoverOpening();
     if (isDrawing && drawStart && drawEnd) drawTempWall();
+    if (tool === 'wall' && currentGuideLine) drawCurrentGuideLine();
     drawSelectionBox();
     drawCursorGhost();
   }
@@ -1524,48 +1695,66 @@
     const joints = buildWallJointMap();
     for (const items of joints.values()) {
       if (items.length < 2) continue;
-      const point = items[0].point;
-      const screen = toScreen(point.x, point.y);
-      const maxThickness = Math.max(...items.map(item => item.wall.thickness));
-      const size = Math.max(2, maxThickness * scale);
-      const half = size / 2;
-      const selected = items.some(item => isItemSelected('wall', item.wall.id));
-      const style = getWallSurfaceStyle(selected);
+      const horizontals = items.filter(item => Math.abs(item.direction.x) > 0);
+      const verticals = items.filter(item => Math.abs(item.direction.y) > 0);
+      if (!horizontals.length || !verticals.length) continue;
 
-      const hasEast = items.some(item => item.direction.x > 0);
-      const hasWest = items.some(item => item.direction.x < 0);
-      const hasSouth = items.some(item => item.direction.y > 0);
-      const hasNorth = items.some(item => item.direction.y < 0);
-      const needsCornerPatch = (hasEast || hasWest) && (hasNorth || hasSouth);
-      if (!needsCornerPatch) continue;
+      const seenRects = new Set();
+      for (const horizontal of horizontals) {
+        for (const vertical of verticals) {
+          const joint = horizontal.point;
+          const horizontalBounds = getWallWorldBounds(horizontal.wall);
+          const verticalBounds = getWallWorldBounds(vertical.wall);
+          const x1 = horizontal.direction.x > 0 ? verticalBounds.minX : Math.max(verticalBounds.minX, joint.x);
+          const x2 = horizontal.direction.x > 0 ? Math.min(verticalBounds.maxX, joint.x) : verticalBounds.maxX;
+          const y1 = vertical.direction.y > 0 ? horizontalBounds.minY : Math.max(horizontalBounds.minY, joint.y);
+          const y2 = vertical.direction.y > 0 ? Math.min(horizontalBounds.maxY, joint.y) : horizontalBounds.maxY;
+          const left = Math.min(x1, x2);
+          const right = Math.max(x1, x2);
+          const top = Math.min(y1, y2);
+          const bottom = Math.max(y1, y2);
+          if ((right - left) < 1 || (bottom - top) < 1) continue;
 
-      fillWallShape(() => {
-        ctx.beginPath();
-        ctx.rect(screen.x - half, screen.y - half, size, size);
-      }, style.fill);
+          const rectKey = `${Math.round(left)},${Math.round(top)},${Math.round(right)},${Math.round(bottom)}`;
+          if (seenRects.has(rectKey)) continue;
+          seenRects.add(rectKey);
 
-      ctx.save();
-      ctx.strokeStyle = style.stroke;
-      ctx.lineWidth = selected ? 1.5 : 1;
-      ctx.beginPath();
-      if (!hasNorth) {
-        ctx.moveTo(screen.x - half, screen.y - half);
-        ctx.lineTo(screen.x + half, screen.y - half);
+          const selected = isItemSelected('wall', horizontal.wall.id) || isItemSelected('wall', vertical.wall.id);
+          const style = getWallSurfaceStyle(selected);
+          const screenTopLeft = toScreen(left, top);
+          const screenBottomRight = toScreen(right, bottom);
+          const rectLeft = Math.min(screenTopLeft.x, screenBottomRight.x);
+          const rectTop = Math.min(screenTopLeft.y, screenBottomRight.y);
+          const rectRight = Math.max(screenTopLeft.x, screenBottomRight.x);
+          const rectBottom = Math.max(screenTopLeft.y, screenBottomRight.y);
+
+          fillWallShape(() => {
+            ctx.beginPath();
+            ctx.rect(rectLeft, rectTop, rectRight - rectLeft, rectBottom - rectTop);
+          }, style.fill);
+
+          ctx.save();
+          ctx.strokeStyle = style.stroke;
+          ctx.lineWidth = selected ? 1.5 : 1;
+          ctx.beginPath();
+          if (vertical.direction.y > 0) {
+            ctx.moveTo(rectLeft, rectTop);
+            ctx.lineTo(rectRight, rectTop);
+          } else {
+            ctx.moveTo(rectLeft, rectBottom);
+            ctx.lineTo(rectRight, rectBottom);
+          }
+          if (horizontal.direction.x > 0) {
+            ctx.moveTo(rectLeft, rectTop);
+            ctx.lineTo(rectLeft, rectBottom);
+          } else {
+            ctx.moveTo(rectRight, rectTop);
+            ctx.lineTo(rectRight, rectBottom);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
       }
-      if (!hasSouth) {
-        ctx.moveTo(screen.x - half, screen.y + half);
-        ctx.lineTo(screen.x + half, screen.y + half);
-      }
-      if (!hasWest) {
-        ctx.moveTo(screen.x - half, screen.y - half);
-        ctx.lineTo(screen.x - half, screen.y + half);
-      }
-      if (!hasEast) {
-        ctx.moveTo(screen.x + half, screen.y - half);
-        ctx.lineTo(screen.x + half, screen.y + half);
-      }
-      ctx.stroke();
-      ctx.restore();
     }
   }
 
@@ -2197,7 +2386,11 @@
     }
 
     if (isDrawing && tool === 'wall' && drawStart) {
+      updateWallGuide(world, pos);
       drawEnd = getWallPreviewEnd(world);
+      redraw();
+    } else if (tool === 'wall' && currentGuideLine) {
+      currentGuideLine = null;
       redraw();
     }
 
